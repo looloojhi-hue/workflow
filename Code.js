@@ -1330,6 +1330,201 @@ function updateLinkedReports(reportId, linkedIdsStr) {
 }
 
 // =========================================================================
+// 18. [API] 프로젝트 워크플로우 타임라인 / 마일스톤 관리
+// =========================================================================
+
+function _canEditProject_(email, projectId, ss) {
+  const authData = ss.getSheetByName('권한관리').getDataRange().getValues();
+  for (let i = 1; i < authData.length; i++) {
+    if (String(authData[i][1] || '').trim().toLowerCase() !== email.toLowerCase()) continue;
+    if (['팀장', '실장', '본부장'].includes(String(authData[i][2] || '').trim())) return true;
+    break;
+  }
+  const msData = ss.getSheetByName('마일스톤DB').getDataRange().getValues();
+  for (let i = 1; i < msData.length; i++) {
+    if (String(msData[i][1] || '') !== projectId) continue;
+    if (String(msData[i][8] || '').toLowerCase() === email.toLowerCase()) return true;
+  }
+  const dbData = ss.getSheetByName('보고DB').getDataRange().getValues();
+  for (let i = 1; i < msData.length; i++) {
+    if (String(msData[i][1] || '') !== projectId || String(msData[i][2] || '') !== 'report') continue;
+    const linkedId = String(msData[i][5] || '');
+    if (!linkedId) continue;
+    for (let j = 1; j < dbData.length; j++) {
+      if (String(dbData[j][0] || '') === linkedId && String(dbData[j][3] || '').toLowerCase() === email.toLowerCase()) return true;
+    }
+  }
+  return false;
+}
+
+function _parseMilestones_(msData, projectId) {
+  const milestones = [];
+  for (let i = 1; i < msData.length; i++) {
+    if (String(msData[i][1] || '') !== projectId) continue;
+    if (String(msData[i][6] || '') === 'deleted') continue;
+    let dateStr = '';
+    if (msData[i][4]) {
+      try { dateStr = Utilities.formatDate(new Date(msData[i][4]), 'GMT+9', 'yyyy-MM-dd'); } catch(e) { dateStr = String(msData[i][4]); }
+    }
+    milestones.push({
+      id: String(msData[i][0] || ''),
+      projectId: String(msData[i][1] || ''),
+      type: String(msData[i][2] || 'event'),
+      title: String(msData[i][3] || ''),
+      date: dateStr,
+      linkedReportId: String(msData[i][5] || ''),
+      status: String(msData[i][6] || 'upcoming'),
+      order: Number(msData[i][7] || 0),
+      creatorEmail: String(msData[i][8] || ''),
+    });
+  }
+  milestones.sort((a, b) => {
+    const od = a.order - b.order;
+    if (od !== 0) return od;
+    if (a.date && b.date) return new Date(a.date) - new Date(b.date);
+    return 0;
+  });
+  return milestones;
+}
+
+function getProjectTimeline(reportId) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const msSheet = ss.getSheetByName('마일스톤DB');
+    if (!msSheet) return { projectId: null, milestones: [], canEdit: false, suggestJoin: false };
+    const email = Session.getActiveUser().getEmail().toLowerCase();
+    const msData = msSheet.getDataRange().getValues();
+
+    // ① 이 보고서가 직접 연결된 마일스톤에서 프로젝트ID 탐색
+    let projectId = null;
+    for (let i = 1; i < msData.length; i++) {
+      if (String(msData[i][5] || '') === reportId && String(msData[i][6] || '') !== 'deleted') {
+        projectId = String(msData[i][1] || '');
+        break;
+      }
+    }
+    if (projectId) {
+      return { projectId, milestones: _parseMilestones_(msData, projectId), canEdit: _canEditProject_(email, projectId, ss), suggestJoin: false };
+    }
+
+    // ② 연관보고서를 통한 프로젝트 탐색 (하이브리드: 사용자 승인 유도)
+    const dbData = ss.getSheetByName('보고DB').getDataRange().getValues();
+    let linkedIds = [], isMyReport = false;
+    for (let i = 1; i < dbData.length; i++) {
+      if (String(dbData[i][0] || '') !== reportId) continue;
+      const raw = String(dbData[i][18] || '');
+      linkedIds = raw.split(',').map(id => id.trim()).filter(Boolean);
+      if (String(dbData[i][3] || '').toLowerCase() === email) isMyReport = true;
+      break;
+    }
+    let suggestProjectId = null;
+    for (let i = 1; i < msData.length; i++) {
+      if (String(msData[i][6] || '') === 'deleted') continue;
+      if (linkedIds.includes(String(msData[i][5] || ''))) { suggestProjectId = String(msData[i][1] || ''); break; }
+    }
+    if (suggestProjectId) {
+      return { projectId: null, milestones: _parseMilestones_(msData, suggestProjectId), canEdit: _canEditProject_(email, suggestProjectId, ss), suggestJoin: true, suggestProjectId };
+    }
+
+    // ③ 프로젝트 없음 — 작성자/리더면 시작 가능
+    const canStart = isMyReport || _canEditProject_(email, '__check_leader__', ss);
+    return { projectId: null, milestones: [], canEdit: canStart, suggestJoin: false, canStart };
+  } catch(e) {
+    Logger.log('getProjectTimeline error: ' + e.toString());
+    return { projectId: null, milestones: [], canEdit: false, suggestJoin: false };
+  }
+}
+
+function addMilestone(data) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const msSheet = ss.getSheetByName('마일스톤DB');
+    const email = Session.getActiveUser().getEmail();
+    let projectId = data.projectId || data.anchorReportId;
+    if (!projectId) return { success: false, message: '프로젝트 ID를 확인할 수 없습니다.' };
+    const existing = msSheet.getDataRange().getValues();
+    let maxOrder = 0;
+    for (let i = 1; i < existing.length; i++) {
+      if (String(existing[i][1] || '') === projectId) {
+        const ord = Number(existing[i][7] || 0);
+        if (ord > maxOrder) maxOrder = ord;
+      }
+    }
+    const milestoneId = 'M-' + new Date().getTime();
+    const now = Utilities.formatDate(new Date(), 'GMT+9', 'yyyy-MM-dd HH:mm');
+    msSheet.appendRow([milestoneId, projectId, data.type || 'event', data.title || '', data.date || '', data.linkedReportId || '', data.status || 'upcoming', (data.order != null ? data.order : maxOrder + 10), email, now]);
+    return { success: true, milestoneId, projectId };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function updateMilestone(milestoneId, updateData) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const msSheet = ss.getSheetByName('마일스톤DB');
+    const email = Session.getActiveUser().getEmail().toLowerCase();
+    const data = msSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0] || '') !== milestoneId) continue;
+      const projectId = String(data[i][1] || '');
+      if (!_canEditProject_(email, projectId, ss)) return { success: false, message: '편집 권한이 없습니다.' };
+      const rowNum = i + 1;
+      if (updateData.title  !== undefined) msSheet.getRange(rowNum, 4).setValue(updateData.title);
+      if (updateData.date   !== undefined) msSheet.getRange(rowNum, 5).setValue(updateData.date);
+      if (updateData.status !== undefined) msSheet.getRange(rowNum, 7).setValue(updateData.status);
+      if (updateData.order  !== undefined) msSheet.getRange(rowNum, 8).setValue(updateData.order);
+      return { success: true };
+    }
+    return { success: false, message: '마일스톤을 찾을 수 없습니다.' };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function deleteMilestone(milestoneId) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const msSheet = ss.getSheetByName('마일스톤DB');
+    const email = Session.getActiveUser().getEmail().toLowerCase();
+    const data = msSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0] || '') !== milestoneId) continue;
+      if (!_canEditProject_(email, String(data[i][1] || ''), ss)) return { success: false, message: '편집 권한이 없습니다.' };
+      msSheet.getRange(i + 1, 7).setValue('deleted');
+      return { success: true };
+    }
+    return { success: false, message: '마일스톤을 찾을 수 없습니다.' };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function joinProject(reportId, projectId) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const msSheet = ss.getSheetByName('마일스톤DB');
+    const email = Session.getActiveUser().getEmail();
+    const msData = msSheet.getDataRange().getValues();
+    let maxOrder = 0;
+    for (let i = 1; i < msData.length; i++) {
+      if (String(msData[i][1] || '') !== projectId) continue;
+      if (String(msData[i][5] || '') === reportId && String(msData[i][6] || '') !== 'deleted') return { success: false, message: '이미 이 프로젝트에 등록된 보고서입니다.' };
+      const ord = Number(msData[i][7] || 0);
+      if (ord > maxOrder) maxOrder = ord;
+    }
+    const dbData = ss.getSheetByName('보고DB').getDataRange().getValues();
+    let title = '', date = '', status = '';
+    for (let i = 1; i < dbData.length; i++) {
+      if (String(dbData[i][0] || '') !== reportId) continue;
+      title = String(dbData[i][7] || '');
+      try { date = dbData[i][2] ? Utilities.formatDate(new Date(dbData[i][2]), 'GMT+9', 'yyyy-MM-dd') : ''; } catch(e) {}
+      status = String(dbData[i][12] || '');
+      break;
+    }
+    const msStatus = status.includes('승인 완료') ? 'done' : (status.includes('대기') || status.includes('반려')) ? 'active' : 'upcoming';
+    const milestoneId = 'M-' + new Date().getTime();
+    const now = Utilities.formatDate(new Date(), 'GMT+9', 'yyyy-MM-dd HH:mm');
+    msSheet.appendRow([milestoneId, projectId, 'report', title, date, reportId, msStatus, maxOrder + 10, email, now]);
+    return { success: true, milestoneId };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+// =========================================================================
 // 🚨 [디버깅 전용] 내 데이터 조회 테스트 함수
 // =========================================================================
 function DEBUG_TEST_GET_DATA() {

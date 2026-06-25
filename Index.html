@@ -580,6 +580,14 @@ video {
   pointer-events: none;
 }
 
+.visible {
+  visibility: visible;
+}
+
+.collapse {
+  visibility: collapse;
+}
+
 .fixed {
   position: fixed;
 }
@@ -590,6 +598,10 @@ video {
 
 .relative {
   position: relative;
+}
+
+.sticky {
+  position: sticky;
 }
 
 .inset-0 {
@@ -625,8 +637,16 @@ video {
   top: -1rem;
 }
 
+.bottom-0 {
+  bottom: 0px;
+}
+
 .left-0 {
   left: 0px;
+}
+
+.left-\[7px\] {
+  left: 7px;
 }
 
 .right-0 {
@@ -643,6 +663,14 @@ video {
 
 .top-1 {
   top: 0.25rem;
+}
+
+.top-4 {
+  top: 1rem;
+}
+
+.top-6 {
+  top: 1.5rem;
 }
 
 .top-8 {
@@ -681,6 +709,16 @@ video {
   margin: auto;
 }
 
+.-mx-1 {
+  margin-left: -0.25rem;
+  margin-right: -0.25rem;
+}
+
+.-my-1 {
+  margin-top: -0.25rem;
+  margin-bottom: -0.25rem;
+}
+
 .mx-1 {
   margin-left: 0.25rem;
   margin-right: 0.25rem;
@@ -689,6 +727,10 @@ video {
 .mx-auto {
   margin-left: auto;
   margin-right: auto;
+}
+
+.mb-0\.5 {
+  margin-bottom: 0.125rem;
 }
 
 .mb-1 {
@@ -701,6 +743,10 @@ video {
 
 .mb-2 {
   margin-bottom: 0.5rem;
+}
+
+.mb-2\.5 {
+  margin-bottom: 0.625rem;
 }
 
 .mb-3 {
@@ -797,6 +843,10 @@ video {
   display: inline-block;
 }
 
+.inline {
+  display: inline;
+}
+
 .flex {
   display: flex;
 }
@@ -811,6 +861,10 @@ video {
 
 .grid {
   display: grid;
+}
+
+.contents {
+  display: contents;
 }
 
 .hidden {
@@ -839,6 +893,10 @@ video {
 
 .h-3 {
   height: 0.75rem;
+}
+
+.h-3\.5 {
+  height: 0.875rem;
 }
 
 .h-32 {
@@ -921,6 +979,10 @@ video {
   width: 0.75rem;
 }
 
+.w-3\.5 {
+  width: 0.875rem;
+}
+
 .w-4 {
   width: 1rem;
 }
@@ -931,6 +993,10 @@ video {
 
 .w-64 {
   width: 16rem;
+}
+
+.w-72 {
+  width: 18rem;
 }
 
 .w-8 {
@@ -949,6 +1015,14 @@ video {
   width: 100%;
 }
 
+.w-px {
+  width: 1px;
+}
+
+.min-w-0 {
+  min-width: 0px;
+}
+
 .min-w-\[800px\] {
   min-width: 800px;
 }
@@ -965,6 +1039,10 @@ video {
   max-width: 64rem;
 }
 
+.max-w-6xl {
+  max-width: 72rem;
+}
+
 .max-w-lg {
   max-width: 32rem;
 }
@@ -977,12 +1055,26 @@ video {
   flex: 1 1 0%;
 }
 
+.flex-shrink {
+  flex-shrink: 1;
+}
+
+.flex-shrink-0 {
+  flex-shrink: 0;
+}
+
 .shrink-0 {
   flex-shrink: 0;
 }
 
 .border-collapse {
   border-collapse: collapse;
+}
+
+.scale-110 {
+  --tw-scale-x: 1.1;
+  --tw-scale-y: 1.1;
+  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 
 .transform {
@@ -1071,6 +1163,18 @@ video {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.grid-cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid-cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.flex-row {
+  flex-direction: row;
+}
+
 .flex-col {
   flex-direction: column;
 }
@@ -1107,6 +1211,10 @@ video {
   justify-content: space-between;
 }
 
+.gap-0\.5 {
+  gap: 0.125rem;
+}
+
 .gap-1 {
   gap: 0.25rem;
 }
@@ -1139,6 +1247,12 @@ video {
   --tw-space-y-reverse: 0;
   margin-top: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
   margin-bottom: calc(0.25rem * var(--tw-space-y-reverse));
+}
+
+.space-y-1\.5 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(0.375rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(0.375rem * var(--tw-space-y-reverse));
 }
 
 .space-y-10 > :not([hidden]) ~ :not([hidden]) {
@@ -1181,6 +1295,10 @@ video {
   --tw-space-y-reverse: 0;
   margin-top: calc(2rem * calc(1 - var(--tw-space-y-reverse)));
   margin-bottom: calc(2rem * var(--tw-space-y-reverse));
+}
+
+.self-auto {
+  align-self: auto;
 }
 
 .self-start {
@@ -1420,6 +1538,10 @@ video {
   border-color: rgb(255 255 255 / 0.5);
 }
 
+.border-t-transparent {
+  border-top-color: transparent;
+}
+
 .border-t-white {
   --tw-border-opacity: 1;
   border-top-color: rgb(255 255 255 / var(--tw-border-opacity, 1));
@@ -1546,6 +1668,15 @@ video {
 
 .bg-indigo-50\/50 {
   background-color: rgb(238 242 255 / 0.5);
+}
+
+.bg-indigo-50\/70 {
+  background-color: rgb(238 242 255 / 0.7);
+}
+
+.bg-indigo-500 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(99 102 241 / var(--tw-bg-opacity, 1));
 }
 
 .bg-indigo-600 {
@@ -1794,6 +1925,11 @@ video {
 
 .p-8 {
   padding: 2rem;
+}
+
+.px-1\.5 {
+  padding-left: 0.375rem;
+  padding-right: 0.375rem;
 }
 
 .px-2 {
@@ -2052,8 +2188,16 @@ video {
   font-size: 22px;
 }
 
+.text-\[32px\] {
+  font-size: 32px;
+}
+
 .text-\[40px\] {
   font-size: 40px;
+}
+
+.text-\[9px\] {
+  font-size: 9px;
 }
 
 .text-base {
@@ -2328,6 +2472,10 @@ video {
   color: rgb(255 255 255 / 0.7);
 }
 
+.underline {
+  text-decoration-line: underline;
+}
+
 .placeholder-indigo-200::-moz-placeholder {
   --tw-placeholder-opacity: 1;
   color: rgb(199 210 254 / var(--tw-placeholder-opacity, 1));
@@ -2344,6 +2492,10 @@ video {
 
 .opacity-10 {
   opacity: 0.1;
+}
+
+.opacity-100 {
+  opacity: 1;
 }
 
 .shadow-2xl {
@@ -2387,9 +2539,19 @@ video {
   outline-offset: 2px;
 }
 
+.outline {
+  outline-style: solid;
+}
+
 .ring-1 {
   --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
   --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+  box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+}
+
+.ring-2 {
+  --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+  --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
   box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
 }
 
@@ -2402,12 +2564,32 @@ video {
   --tw-ring-color: rgb(254 243 199 / 0.5);
 }
 
+.ring-indigo-200 {
+  --tw-ring-opacity: 1;
+  --tw-ring-color: rgb(199 210 254 / var(--tw-ring-opacity, 1));
+}
+
+.blur {
+  --tw-blur: blur(8px);
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+
+.brightness-110 {
+  --tw-brightness: brightness(1.1);
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+
 .filter {
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
 
 .backdrop-blur-sm {
   --tw-backdrop-blur: blur(4px);
+  -webkit-backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
+  backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
+}
+
+.backdrop-filter {
   -webkit-backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
   backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
 }
@@ -2533,6 +2715,11 @@ video {
   border-color: rgb(226 232 240 / var(--tw-border-opacity, 1));
 }
 
+.hover\:border-slate-300:hover {
+  --tw-border-opacity: 1;
+  border-color: rgb(203 213 225 / var(--tw-border-opacity, 1));
+}
+
 .hover\:bg-amber-50:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(255 251 235 / var(--tw-bg-opacity, 1));
@@ -2642,6 +2829,16 @@ video {
   color: rgb(75 85 99 / var(--tw-text-opacity, 1));
 }
 
+.hover\:text-indigo-500:hover {
+  --tw-text-opacity: 1;
+  color: rgb(99 102 241 / var(--tw-text-opacity, 1));
+}
+
+.hover\:text-indigo-600:hover {
+  --tw-text-opacity: 1;
+  color: rgb(79 70 229 / var(--tw-text-opacity, 1));
+}
+
 .hover\:text-indigo-700:hover {
   --tw-text-opacity: 1;
   color: rgb(67 56 202 / var(--tw-text-opacity, 1));
@@ -2655,6 +2852,11 @@ video {
 .hover\:text-red-500:hover {
   --tw-text-opacity: 1;
   color: rgb(239 68 68 / var(--tw-text-opacity, 1));
+}
+
+.hover\:text-slate-600:hover {
+  --tw-text-opacity: 1;
+  color: rgb(71 85 105 / var(--tw-text-opacity, 1));
 }
 
 .hover\:text-slate-700:hover {
@@ -2738,6 +2940,11 @@ video {
 .focus\:ring-emerald-500:focus {
   --tw-ring-opacity: 1;
   --tw-ring-color: rgb(16 185 129 / var(--tw-ring-opacity, 1));
+}
+
+.focus\:ring-indigo-400:focus {
+  --tw-ring-opacity: 1;
+  --tw-ring-color: rgb(129 140 248 / var(--tw-ring-opacity, 1));
 }
 
 .focus\:ring-indigo-500:focus {
@@ -2866,6 +3073,14 @@ video {
 }
 
 @media (min-width: 1024px) {
+  .lg\:block {
+    display: block;
+  }
+
+  .lg\:hidden {
+    display: none;
+  }
+
   .lg\:grid-cols-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3405,6 +3620,26 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
       // 🚨 [📅 신규 피처] 구글 캘린더 동적 선택 드롭다운 상태값 추가
       const [isCalendarDropdownOpen, setIsCalendarDropdownOpen] = useState(false);
 
+      // ── 프로젝트 타임라인 상태
+      const [projectTimeline, setProjectTimeline] = useState(null);
+      const [isTimelineLoading, setIsTimelineLoading] = useState(true);
+      const [isTimelineExpanded, setIsTimelineExpanded] = useState(false);
+      const [isMobileTimelineOpen, setIsMobileTimelineOpen] = useState(false);
+      const [isAddingMs, setIsAddingMs] = useState(false);
+      const [newMs, setNewMs] = useState({ title: '', date: '', type: 'event', linkedReportId: '', status: 'upcoming' });
+      const [editingMsId, setEditingMsId] = useState(null);
+      const [editMsData, setEditMsData] = useState({});
+      const [isMsSaving, setIsMsSaving] = useState(false);
+
+      useEffect(() => {
+        setIsTimelineLoading(true);
+        setProjectTimeline(null);
+        google.script.run
+          .withSuccessHandler(result => { setProjectTimeline(result); setIsTimelineLoading(false); })
+          .withFailureHandler(() => setIsTimelineLoading(false))
+          .getProjectTimeline(report.id);
+      }, [report.id]);
+
       const linkedIds = report.linkedReports ? String(report.linkedReports).split(',').map(id => id.trim()).filter(Boolean) : [];
       
       const relatedReports = safeReports.filter(r => {
@@ -3719,9 +3954,221 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
           .addSharedUsersToReport(report.id, newEmailsStr);
       };
 
+      // ── 타임라인 패널 렌더러
+      const renderTimelinePanel = () => {
+        const VISIBLE = 5;
+        const tl = projectTimeline || {};
+        const msList = tl.milestones || [];
+        const canEdit = tl.canEdit || false;
+        const hasProject = !!tl.projectId;
+        const visible = isTimelineExpanded ? msList : msList.slice(0, VISIBLE);
+
+        const refetchTimeline = () => {
+          google.script.run
+            .withSuccessHandler(r => setProjectTimeline(r))
+            .getProjectTimeline(report.id);
+        };
+
+        const handleStartProject = () => {
+          setIsMsSaving(true);
+          const msStatus = report.status && report.status.includes('승인 완료') ? 'done' : report.status && report.status.includes('대기') ? 'active' : 'upcoming';
+          google.script.run
+            .withSuccessHandler(res => { setIsMsSaving(false); if (res.success) refetchTimeline(); else Swal.fire('오류', res.message, 'error'); })
+            .withFailureHandler(err => { setIsMsSaving(false); Swal.fire('오류', err.message, 'error'); })
+            .addMilestone({ anchorReportId: report.id, type: 'report', title: report.title, date: report.reportDate || '', linkedReportId: report.id, status: msStatus });
+        };
+
+        const handleJoinProject = () => {
+          setIsMsSaving(true);
+          google.script.run
+            .withSuccessHandler(res => { setIsMsSaving(false); if (res.success) refetchTimeline(); else Swal.fire('오류', res.message, 'error'); })
+            .withFailureHandler(err => { setIsMsSaving(false); Swal.fire('오류', err.message, 'error'); })
+            .joinProject(report.id, tl.suggestProjectId);
+        };
+
+        const handleAddMs = () => {
+          if (!newMs.title.trim()) { Swal.fire('알림', '마일스톤 제목을 입력하세요.', 'info'); return; }
+          setIsMsSaving(true);
+          google.script.run
+            .withSuccessHandler(res => { setIsMsSaving(false); setIsAddingMs(false); setNewMs({ title: '', date: '', type: 'event', linkedReportId: '', status: 'upcoming' }); if (res.success) refetchTimeline(); else Swal.fire('오류', res.message, 'error'); })
+            .withFailureHandler(err => { setIsMsSaving(false); Swal.fire('오류', err.message, 'error'); })
+            .addMilestone({ ...newMs, projectId: tl.projectId });
+        };
+
+        const handleSaveEdit = (msId) => {
+          setIsMsSaving(true);
+          google.script.run
+            .withSuccessHandler(res => { setIsMsSaving(false); setEditingMsId(null); setEditMsData({}); if (res.success) refetchTimeline(); else Swal.fire('오류', res.message, 'error'); })
+            .withFailureHandler(err => { setIsMsSaving(false); Swal.fire('오류', err.message, 'error'); })
+            .updateMilestone(msId, editMsData);
+        };
+
+        const handleDeleteMs = (msId) => {
+          Swal.fire({ title: '마일스톤 삭제', text: '삭제하면 복구할 수 없습니다.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', cancelButtonText: '취소', confirmButtonText: '삭제' }).then(r => {
+            if (!r.isConfirmed) return;
+            google.script.run
+              .withSuccessHandler(res => { if (res.success) refetchTimeline(); else Swal.fire('오류', res.message, 'error'); })
+              .withFailureHandler(err => Swal.fire('오류', err.message, 'error'))
+              .deleteMilestone(msId);
+          });
+        };
+
+        const stCfg = {
+          done:     { dot: 'bg-emerald-500', badge: 'text-emerald-700 bg-emerald-50',  label: '완료' },
+          active:   { dot: 'bg-indigo-500',  badge: 'text-indigo-700 bg-indigo-50',    label: '진행중' },
+          upcoming: { dot: 'border-2 border-slate-300 bg-white', badge: 'text-slate-500 bg-slate-100', label: '예정' },
+        };
+
+        if (isTimelineLoading) return (
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div className="flex items-center gap-2 text-sm text-slate-400">
+              <div className="w-4 h-4 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin"></div>
+              워크플로우 로딩 중...
+            </div>
+          </div>
+        );
+
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* 헤더 */}
+            <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-1.5 text-sm font-bold text-slate-700">
+                  <Icon name="timeline" className="text-indigo-500 text-[18px]" /> 프로젝트 워크플로우
+                </div>
+                {msList.length > 0 && <div className="text-[10px] text-slate-400 mt-0.5">{msList.filter(m=>m.status==='done').length} / {msList.length} 완료</div>}
+              </div>
+              {hasProject && canEdit && !isAddingMs && (
+                <button onClick={() => setIsAddingMs(true)} className="text-[11px] font-bold text-indigo-500 hover:text-indigo-700 px-2 py-0.5 rounded-lg hover:bg-indigo-50 transition-colors">+ 추가</button>
+              )}
+            </div>
+
+            {/* 합류 배너 */}
+            {tl.suggestJoin && (
+              <div className="m-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                <p className="text-[12px] font-bold text-indigo-700 mb-1">연관 프로젝트 발견</p>
+                <p className="text-[11px] text-indigo-600 mb-2.5">연결된 보고서가 속한 프로젝트 워크플로우가 있습니다.</p>
+                <div className="flex gap-2">
+                  <button onClick={handleJoinProject} disabled={isMsSaving} className="flex-1 py-1.5 bg-indigo-600 text-white text-[11px] font-bold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50">{isMsSaving ? '처리 중...' : '이 프로젝트에 합류'}</button>
+                  <button onClick={() => setProjectTimeline(prev => ({...prev, suggestJoin: false}))} className="px-3 py-1.5 bg-white border border-slate-200 text-slate-500 text-[11px] font-bold rounded-lg hover:bg-slate-50 transition-colors">닫기</button>
+                </div>
+              </div>
+            )}
+
+            {/* 프로젝트 없음 */}
+            {!hasProject && !tl.suggestJoin && (
+              <div className="p-5 text-center">
+                <Icon name="timeline" className="text-slate-300 text-[32px] block mx-auto mb-2" />
+                <p className="text-[12px] text-slate-400 mb-3">등록된 워크플로우가 없습니다.</p>
+                {tl.canStart && (
+                  <button onClick={handleStartProject} disabled={isMsSaving} className="px-4 py-2 bg-indigo-600 text-white text-[12px] font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50">{isMsSaving ? '생성 중...' : '새 프로젝트 타임라인 시작'}</button>
+                )}
+              </div>
+            )}
+
+            {/* 마일스톤 추가 폼 */}
+            {isAddingMs && hasProject && (
+              <div className="px-4 py-3 bg-indigo-50/50 border-b border-indigo-100 space-y-2">
+                <input type="text" value={newMs.title} onChange={e => setNewMs({...newMs, title: e.target.value})} placeholder="마일스톤 제목 *" className="w-full px-3 py-2 text-[12px] border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+                <div className="flex gap-2">
+                  <input type="date" value={newMs.date} onChange={e => setNewMs({...newMs, date: e.target.value})} className="flex-1 px-2 py-1.5 text-[11px] border border-slate-200 rounded-lg focus:outline-none bg-white" />
+                  <select value={newMs.status} onChange={e => setNewMs({...newMs, status: e.target.value})} className="px-2 py-1.5 text-[11px] border border-slate-200 rounded-lg focus:outline-none bg-white">
+                    <option value="upcoming">예정</option><option value="active">진행중</option><option value="done">완료</option>
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <select value={newMs.type} onChange={e => setNewMs({...newMs, type: e.target.value, linkedReportId: ''})} className="px-2 py-1.5 text-[11px] border border-slate-200 rounded-lg focus:outline-none bg-white">
+                    <option value="event">독립 이정표</option><option value="report">보고서 연결</option>
+                  </select>
+                  {newMs.type === 'report' && (
+                    <select value={newMs.linkedReportId} onChange={e => { const r = safeReports.find(r => r.id === e.target.value); setNewMs({...newMs, linkedReportId: e.target.value, title: newMs.title || (r ? r.title : '')}); }} className="flex-1 px-2 py-1.5 text-[11px] border border-slate-200 rounded-lg focus:outline-none bg-white">
+                      <option value="">보고서 선택...</option>
+                      {safeReports.map(r => <option key={r.id} value={r.id}>{r.title.slice(0,25)}{r.title.length>25?'…':''}</option>)}
+                    </select>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleAddMs} disabled={isMsSaving} className="flex-1 py-1.5 bg-indigo-600 text-white text-[11px] font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors">{isMsSaving ? '저장 중...' : '저장'}</button>
+                  <button onClick={() => { setIsAddingMs(false); setNewMs({ title: '', date: '', type: 'event', linkedReportId: '', status: 'upcoming' }); }} className="px-3 py-1.5 bg-white border border-slate-200 text-slate-500 text-[11px] font-bold rounded-lg hover:bg-slate-50 transition-colors">취소</button>
+                </div>
+              </div>
+            )}
+
+            {/* 마일스톤 목록 */}
+            {msList.length > 0 && (
+              <div className="px-4 pt-4 pb-2">
+                {visible.map((ms, idx) => {
+                  const isCurrent = ms.linkedReportId === report.id;
+                  const cfg = stCfg[ms.status] || stCfg.upcoming;
+                  const isEditing = editingMsId === ms.id;
+                  return (
+                    <div key={ms.id} className={`relative flex gap-3 group ${idx < visible.length - 1 ? 'pb-4' : 'pb-2'}`}>
+                      {idx < visible.length - 1 && <div className="absolute left-[7px] top-4 bottom-0 w-px bg-slate-200"></div>}
+                      <div className="flex-shrink-0 mt-0.5 z-10">
+                        <div className={`w-3.5 h-3.5 rounded-full ${cfg.dot} ${ms.status === 'active' ? 'ring-2 ring-indigo-200' : ''}`}></div>
+                      </div>
+                      <div className={`flex-1 min-w-0 ${isCurrent ? 'bg-indigo-50/70 rounded-xl px-2.5 py-2 -mx-1 -my-1' : ''}`}>
+                        {isEditing ? (
+                          <div className="space-y-1.5">
+                            <input type="text" value={editMsData.title ?? ms.title} onChange={e => setEditMsData({...editMsData, title: e.target.value})} className="w-full px-2 py-1 text-[11px] border border-indigo-300 rounded-lg focus:outline-none bg-white" />
+                            <div className="flex gap-1.5">
+                              <input type="date" value={editMsData.date ?? ms.date} onChange={e => setEditMsData({...editMsData, date: e.target.value})} className="flex-1 px-1.5 py-1 text-[10px] border border-slate-200 rounded-lg focus:outline-none bg-white" />
+                              <select value={editMsData.status ?? ms.status} onChange={e => setEditMsData({...editMsData, status: e.target.value})} className="px-1.5 py-1 text-[10px] border border-slate-200 rounded-lg focus:outline-none bg-white">
+                                <option value="upcoming">예정</option><option value="active">진행중</option><option value="done">완료</option>
+                              </select>
+                            </div>
+                            <div className="flex gap-1.5">
+                              <button onClick={() => handleSaveEdit(ms.id)} disabled={isMsSaving} className="flex-1 py-1 bg-indigo-600 text-white text-[10px] font-bold rounded-md disabled:opacity-50">저장</button>
+                              <button onClick={() => { setEditingMsId(null); setEditMsData({}); }} className="px-2 py-1 bg-white border border-slate-200 text-slate-500 text-[10px] font-bold rounded-md">취소</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="flex-1 min-w-0">
+                              {ms.date && <div className="text-[10px] text-slate-400 mb-0.5">{ms.date}</div>}
+                              {ms.type === 'report' && ms.linkedReportId && !isCurrent ? (
+                                <button onClick={() => { const r = safeReports.find(r => r.id === ms.linkedReportId); if(r){ window.scrollTo({top:0,behavior:'smooth'}); setReport(r); } }} className="text-[12px] font-bold text-slate-800 hover:text-indigo-600 transition-colors text-left w-full">{ms.title}</button>
+                              ) : (
+                                <div className={`text-[12px] font-bold ${isCurrent ? 'text-indigo-700' : 'text-slate-700'}`}>{ms.title}</div>
+                              )}
+                              <div className="flex flex-wrap items-center gap-1 mt-1">
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${cfg.badge}`}>{cfg.label}</span>
+                                {ms.type === 'event' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700">이정표</span>}
+                                {isCurrent && <span className="text-[9px] font-bold text-indigo-600">◉ 현재</span>}
+                              </div>
+                            </div>
+                            {canEdit && (
+                              <div className="flex-shrink-0 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => { setEditingMsId(ms.id); setEditMsData({}); }} className="p-1 text-slate-300 hover:text-indigo-500 rounded transition-colors"><Icon name="edit" className="text-[13px] block" /></button>
+                                <button onClick={() => handleDeleteMs(ms.id)} className="p-1 text-slate-300 hover:text-red-500 rounded transition-colors"><Icon name="delete" className="text-[13px] block" /></button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 더 보기 */}
+            {msList.length > VISIBLE && (
+              <div className="px-4 pb-4">
+                <button onClick={() => setIsTimelineExpanded(!isTimelineExpanded)} className="w-full py-1.5 text-[11px] font-bold text-slate-400 hover:text-slate-600 border border-dashed border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                  {isTimelineExpanded ? '▴ 접기' : `▾ ${msList.length - VISIBLE}개 더 보기`}
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      };
+
       return (
-        <div className="max-w-4xl mx-auto pb-10 animate-[fadeIn_0.2s_ease-out] relative">
-          
+        <div className="max-w-6xl mx-auto pb-10 animate-[fadeIn_0.2s_ease-out]">
+          <div className="flex gap-6 items-start">
+          <div className="flex-1 min-w-0 relative">
+
           {isUpdateLoading && (
             <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-2xl">
               <div className="loader mb-4"></div><p className="text-lg font-bold text-blue-600 animate-pulse">새로운 문서를 저장하고 AI를 다시 분석 중입니다...</p>
@@ -4122,6 +4569,26 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
             )}
 
           </div>
+
+          {/* 모바일 타임라인 토글 */}
+          {(projectTimeline || isTimelineLoading) && (
+            <div className="lg:hidden mt-4">
+              <button onClick={() => setIsMobileTimelineOpen(!isMobileTimelineOpen)} className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors">
+                <span className="flex items-center gap-2"><Icon name="timeline" className="text-indigo-500 text-[18px]" /> 프로젝트 워크플로우</span>
+                <Icon name={isMobileTimelineOpen ? 'expand_less' : 'expand_more'} className="text-[18px]" />
+              </button>
+              {isMobileTimelineOpen && <div className="mt-2">{renderTimelinePanel()}</div>}
+            </div>
+          )}
+
+          </div>{/* flex-1 main column 닫기 */}
+
+          {/* 데스크탑 타임라인 패널 */}
+          <div className="hidden lg:block w-72 flex-shrink-0 sticky top-6">
+            {renderTimelinePanel()}
+          </div>
+
+          </div>{/* flex wrapper 닫기 */}
 
           {actionModal.isOpen && (
             <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">

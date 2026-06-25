@@ -3,3 +3,4 @@ tw-input.css
 tw-output.css
 node_modules/**
 .git/**
+docs/**
