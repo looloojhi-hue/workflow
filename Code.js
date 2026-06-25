@@ -1357,10 +1357,35 @@ function _canEditProject_(email, projectId, ss) {
   return false;
 }
 
+// 연관보고서 체인을 양방향으로 전이 탐색하여 같은 클러스터의 모든 보고서 ID 반환
+function _getReportCluster_(rootId, dbData) {
+  const cluster = new Set([rootId]);
+  const queue = [rootId];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (let i = 1; i < dbData.length; i++) {
+      const id = String(dbData[i][0] || '');
+      const raw = String(dbData[i][18] || '');
+      const linked = raw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+      if (id === cur) {
+        linked.forEach(function(lid) { if (!cluster.has(lid)) { cluster.add(lid); queue.push(lid); } });
+      } else if (linked.indexOf(cur) !== -1 && !cluster.has(id)) {
+        cluster.add(id); queue.push(id);
+      }
+    }
+  }
+  return cluster;
+}
+
 function _parseMilestones_(msData, projectId) {
+  const set = new Set([projectId]);
+  return _parseMilestonesCluster_(msData, set);
+}
+
+function _parseMilestonesCluster_(msData, projectIdSet) {
   const milestones = [];
   for (let i = 1; i < msData.length; i++) {
-    if (String(msData[i][1] || '') !== projectId) continue;
+    if (!projectIdSet.has(String(msData[i][1] || ''))) continue;
     if (String(msData[i][6] || '') === 'deleted') continue;
     let dateStr = '';
     if (msData[i][4]) {
@@ -1378,7 +1403,7 @@ function _parseMilestones_(msData, projectId) {
       creatorEmail: String(msData[i][8] || ''),
     });
   }
-  milestones.sort((a, b) => {
+  milestones.sort(function(a, b) {
     const od = a.order - b.order;
     if (od !== 0) return od;
     if (a.date && b.date) return new Date(a.date) - new Date(b.date);
@@ -1391,47 +1416,49 @@ function getProjectTimeline(reportId) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const msSheet = ss.getSheetByName('마일스톤DB');
-    if (!msSheet) return { projectId: null, milestones: [], canEdit: false, suggestJoin: false };
+    if (!msSheet) return { projectId: null, milestones: [], canEdit: false };
     const email = Session.getActiveUser().getEmail().toLowerCase();
     const msData = msSheet.getDataRange().getValues();
+    const dbData = ss.getSheetByName('보고DB').getDataRange().getValues();
 
-    // ① 이 보고서가 직접 연결된 마일스톤에서 프로젝트ID 탐색
-    let projectId = null;
-    for (let i = 1; i < msData.length; i++) {
-      if (String(msData[i][5] || '') === reportId && String(msData[i][6] || '') !== 'deleted') {
-        projectId = String(msData[i][1] || '');
+    // 연관보고서 클러스터 전체 ID 집합 (양방향 transitive)
+    const cluster = _getReportCluster_(reportId, dbData);
+
+    let isMyReport = false;
+    for (let i = 1; i < dbData.length; i++) {
+      if (String(dbData[i][0] || '') === reportId) {
+        if (String(dbData[i][3] || '').toLowerCase() === email) isMyReport = true;
         break;
       }
     }
-    if (projectId) {
-      return { projectId, milestones: _parseMilestones_(msData, projectId), canEdit: _canEditProject_(email, projectId, ss), suggestJoin: false };
-    }
 
-    // ② 연관보고서를 통한 프로젝트 탐색 (하이브리드: 사용자 승인 유도)
-    const dbData = ss.getSheetByName('보고DB').getDataRange().getValues();
-    let linkedIds = [], isMyReport = false;
-    for (let i = 1; i < dbData.length; i++) {
-      if (String(dbData[i][0] || '') !== reportId) continue;
-      const raw = String(dbData[i][18] || '');
-      linkedIds = raw.split(',').map(id => id.trim()).filter(Boolean);
-      if (String(dbData[i][3] || '').toLowerCase() === email) isMyReport = true;
-      break;
-    }
-    let suggestProjectId = null;
+    // 클러스터 내 마일스톤이 있는 모든 projectId 수집 (column B = projectId)
+    const clusterProjectIds = new Set();
     for (let i = 1; i < msData.length; i++) {
       if (String(msData[i][6] || '') === 'deleted') continue;
-      if (linkedIds.includes(String(msData[i][5] || ''))) { suggestProjectId = String(msData[i][1] || ''); break; }
-    }
-    if (suggestProjectId) {
-      return { projectId: null, milestones: _parseMilestones_(msData, suggestProjectId), canEdit: _canEditProject_(email, suggestProjectId, ss), suggestJoin: true, suggestProjectId };
+      const pid = String(msData[i][1] || '');
+      if (cluster.has(pid)) clusterProjectIds.add(pid);
     }
 
-    // ③ 프로젝트 없음 — 작성자/리더면 시작 가능
-    const canStart = isMyReport || _canEditProject_(email, '__check_leader__', ss);
-    return { projectId: null, milestones: [], canEdit: canStart, suggestJoin: false, canStart };
+    if (clusterProjectIds.size === 0) {
+      const canStart = isMyReport || _canEditProject_(email, '__check_leader__', ss);
+      return { projectId: null, milestones: [], canEdit: canStart, canStart: canStart };
+    }
+
+    // canonical projectId = 마일스톤DB에서 가장 먼저 등장하는 projectId (= 가장 먼저 생성된 프로젝트)
+    let canonicalId = null;
+    for (let i = 1; i < msData.length; i++) {
+      const pid = String(msData[i][1] || '');
+      if (clusterProjectIds.has(pid)) { canonicalId = pid; break; }
+    }
+
+    // 클러스터 내 모든 프로젝트 마일스톤 통합 표시
+    const milestones = _parseMilestonesCluster_(msData, clusterProjectIds);
+    const canEdit = _canEditProject_(email, canonicalId, ss);
+    return { projectId: canonicalId, milestones: milestones, canEdit: canEdit };
   } catch(e) {
     Logger.log('getProjectTimeline error: ' + e.toString());
-    return { projectId: null, milestones: [], canEdit: false, suggestJoin: false };
+    return { projectId: null, milestones: [], canEdit: false };
   }
 }
 

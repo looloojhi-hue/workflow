@@ -729,6 +729,10 @@ video {
   margin-right: auto;
 }
 
+.mb-0 {
+  margin-bottom: 0px;
+}
+
 .mb-0\.5 {
   margin-bottom: 0.125rem;
 }
@@ -743,10 +747,6 @@ video {
 
 .mb-2 {
   margin-bottom: 0.5rem;
-}
-
-.mb-2\.5 {
-  margin-bottom: 0.625rem;
 }
 
 .mb-3 {
@@ -1209,6 +1209,10 @@ video {
 
 .justify-between {
   justify-content: space-between;
+}
+
+.gap-0 {
+  gap: 0px;
 }
 
 .gap-0\.5 {
@@ -1925,6 +1929,11 @@ video {
 
 .p-8 {
   padding: 2rem;
+}
+
+.px-1 {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
 }
 
 .px-1\.5 {
@@ -3978,14 +3987,6 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
             .addMilestone({ anchorReportId: report.id, type: 'report', title: report.title, date: report.reportDate || '', linkedReportId: report.id, status: msStatus });
         };
 
-        const handleJoinProject = () => {
-          setIsMsSaving(true);
-          google.script.run
-            .withSuccessHandler(res => { setIsMsSaving(false); if (res.success) refetchTimeline(); else Swal.fire('오류', res.message, 'error'); })
-            .withFailureHandler(err => { setIsMsSaving(false); Swal.fire('오류', err.message, 'error'); })
-            .joinProject(report.id, tl.suggestProjectId);
-        };
-
         const handleAddMs = () => {
           if (!newMs.title.trim()) { Swal.fire('알림', '마일스톤 제목을 입력하세요.', 'info'); return; }
           setIsMsSaving(true);
@@ -4043,20 +4044,8 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
               )}
             </div>
 
-            {/* 합류 배너 */}
-            {tl.suggestJoin && (
-              <div className="m-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
-                <p className="text-[12px] font-bold text-indigo-700 mb-1">연관 프로젝트 발견</p>
-                <p className="text-[11px] text-indigo-600 mb-2.5">연결된 보고서가 속한 프로젝트 워크플로우가 있습니다.</p>
-                <div className="flex gap-2">
-                  <button onClick={handleJoinProject} disabled={isMsSaving} className="flex-1 py-1.5 bg-indigo-600 text-white text-[11px] font-bold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50">{isMsSaving ? '처리 중...' : '이 프로젝트에 합류'}</button>
-                  <button onClick={() => setProjectTimeline(prev => ({...prev, suggestJoin: false}))} className="px-3 py-1.5 bg-white border border-slate-200 text-slate-500 text-[11px] font-bold rounded-lg hover:bg-slate-50 transition-colors">닫기</button>
-                </div>
-              </div>
-            )}
-
             {/* 프로젝트 없음 */}
-            {!hasProject && !tl.suggestJoin && (
+            {!hasProject && (
               <div className="p-5 text-center">
                 <Icon name="timeline" className="text-slate-300 text-[32px] block mx-auto mb-2" />
                 <p className="text-[12px] text-slate-400 mb-3">등록된 워크플로우가 없습니다.</p>
