@@ -1,4 +1,16 @@
 // =========================================================================
+// 0. 상태 상수 정의
+// =========================================================================
+const STATUS = {
+  WAITING_TEAM: '[팀장 대기]',
+  WAITING_ROOM: '[실장 대기]',
+  WAITING_EXEC: '[본부장 대기]',
+  DELETED:      '[보고서 삭제됨]',
+  approved: function(role) { return '[' + role + ' 승인 완료]'; },
+  rejected: function(role) { return '[' + role + ' 반려]'; },
+};
+
+// =========================================================================
 // 1. 초기 화면 및 프론트엔드 연동
 // =========================================================================
 function doGet(e) {
@@ -48,11 +60,15 @@ function getFormData() {
     }
   }
   
-  const orgMap = {
-    "인사전략실": ["인사전략팀", "GHR팀", "인재개발팀"],
-    "인사실": ["인사팀", "총무팀"],
-    "ER실": ["ER전략팀"]
-  };
+  const orgMap = {};
+  for (let i = 1; i < authData.length; i++) {
+    const office = String(authData[i][4] || "").trim();
+    const team = String(authData[i][5] || "").trim();
+    if (office && team) {
+      if (!orgMap[office]) orgMap[office] = [];
+      if (!orgMap[office].includes(team)) orgMap[office].push(team);
+    }
+  }
 
   return { email: email, orgMap: orgMap, isLeader: isLeader, userList: userList };
 }
@@ -139,15 +155,15 @@ function submitReport(formData) {
   let initialLog = "";
 
   if (formData.isArchiveMode) {
-    initialStatus = `[${formData.targetRole} 승인 완료]`;
+    initialStatus = STATUS.approved(formData.targetRole);
     initialLog = `${Utilities.formatDate(new Date(), "GMT+9", "yyyy-MM-dd HH:mm")} - ${formData.name}님이 과거 완료된 보고서를 보관함에 등록했습니다.`;
   } else {
-    initialStatus = "[팀장 대기]";
-    if (myRole === "팀장") initialStatus = "[실장 대기]";
-    if (myRole === "실장") initialStatus = "[본부장 대기]";
-    
+    initialStatus = STATUS.WAITING_TEAM;
+    if (myRole === "팀장") initialStatus = STATUS.WAITING_ROOM;
+    if (myRole === "실장") initialStatus = STATUS.WAITING_EXEC;
+
     if (myRole === "본부장" || myRole === formData.targetRole || (myRole === "실장" && formData.targetRole === "팀장")) {
-      initialStatus = `[${formData.targetRole} 승인 완료]`;
+      initialStatus = STATUS.approved(formData.targetRole);
     }
 
     initialLog = `${Utilities.formatDate(new Date(), "GMT+9", "yyyy-MM-dd HH:mm")} - ${formData.name}님 보고서 제출`;
@@ -184,11 +200,11 @@ function submitReport(formData) {
       };
 
       // 초기 셋팅된 대기 단계에 맞춰 상위 직책자 맞춤형 라우팅 전송
-      if (initialStatus === "[팀장 대기]") {
+      if (initialStatus === STATUS.WAITING_TEAM) {
         triggerReportNotification('SUBMIT', reportObj, authDataForRole);
-      } else if (initialStatus === "[실장 대기]") {
+      } else if (initialStatus === STATUS.WAITING_ROOM) {
         triggerReportNotification('APPROVE_BY_TEAM', reportObj, authDataForRole);
-      } else if (initialStatus === "[본부장 대기]") {
+      } else if (initialStatus === STATUS.WAITING_EXEC) {
         triggerReportNotification('APPROVE_BY_ROOM', reportObj, authDataForRole);
       }
     }
@@ -413,7 +429,7 @@ function getMySubmissions() {
       if (!row[0]) continue;
 
       // 삭제된 보고서 제외
-      if (String(row[12] || "") === "[보고서 삭제됨]") continue;
+      if (String(row[12] || "") === STATUS.DELETED) continue;
 
       const authorEmail = String(row[3] || "").toLowerCase().trim();
       const rawSharedUsers = String(row[11] || "").toLowerCase();
@@ -564,28 +580,28 @@ function updateReportStatus(reportId, action, comment) {
   if (action === 'APPROVE') {
     // 🚨 [핵심 로직] 현재 승인자가 최종 전결 대상인지 확인
     if (userInfo.role === targetRole) {
-      nextStatus = `[${targetRole} 승인 완료]`;
+      nextStatus = STATUS.approved(targetRole);
     } else {
       // 다음 단계로 토스
-      if (currentStatus.includes("팀장")) nextStatus = "[실장 대기]";
-      else if (currentStatus.includes("실장")) nextStatus = "[본부장 대기]";
-      else if (currentStatus.includes("본부장")) nextStatus = "[본부장 승인 완료]";
+      if (currentStatus.includes("팀장")) nextStatus = STATUS.WAITING_ROOM;
+      else if (currentStatus.includes("실장")) nextStatus = STATUS.WAITING_EXEC;
+      else if (currentStatus.includes("본부장")) nextStatus = STATUS.approved("본부장");
     }
   } else if (action === 'REJECT') {
-    nextStatus = `[${userInfo.role} 반려]`;
+    nextStatus = STATUS.rejected(userInfo.role);
   } else if (action === 'RESUBMIT') {
     // 재승인 시 다시 처음 단계부터 (targetRole 상관없이 팀장부터 혹은 본인 직책 다음부터)
-    nextStatus = (userInfo.role === "팀장") ? "[실장 대기]" : 
-                 (userInfo.role === "실장") ? "[본부장 대기]" : "[팀장 대기]";
+    nextStatus = (userInfo.role === "팀장") ? STATUS.WAITING_ROOM :
+                 (userInfo.role === "실장") ? STATUS.WAITING_EXEC : STATUS.WAITING_TEAM;
   } else if (action === 'FORCE_ARCHIVE') {
     // 🚨 리더 권한으로 과거 오등록 문서를 즉시 최종 결재 완료 상태로 강제 전환
-    nextStatus = `[${targetRole} 승인 완료]`;
+    nextStatus = STATUS.approved(targetRole);
   } else if (action === 'CHG_TO_ARCHIVE') {
     // 🚨 [보고자 패치] 최초 단계에서 보고자 자율로 최종 완료 처리 스위칭
-    nextStatus = `[${targetRole} 승인 완료]`;
+    nextStatus = STATUS.approved(targetRole);
   } else if (action === 'SOFT_DELETE') {
     // 🚨 [논리 삭제 패치] 행 데이터 영구 유실 방지를 위해 상태값만 삭제 격리 처리
-    nextStatus = `[보고서 삭제됨]`;
+    nextStatus = STATUS.DELETED;
   }
 
   // 4. 로그 기록 생성
