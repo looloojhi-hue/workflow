@@ -535,12 +535,34 @@ function updateReportStatus(reportId, action, comment) {
   }
   
   if (rowIndex === -1) throw new Error("보고서를 찾을 수 없습니다.");
-  
+
   const currentStatus = data[rowIndex-1][12]; // M열
   const currentLog = data[rowIndex-1][13];    // N열
   const targetRole = data[rowIndex-1][16];    // Q열: 최종 전결 대상
+  const authorEmail = String(data[rowIndex-1][3] || ""); // D열: 기안자 이메일
   let nextStatus = currentStatus;
-  
+
+  // 3. 서버사이드 권한 검증
+  const userRole = userInfo ? userInfo.role : "";
+  if (action === 'APPROVE' || action === 'REJECT') {
+    const isAuthorized =
+      (currentStatus.includes("팀장")  && userRole === "팀장")  ||
+      (currentStatus.includes("실장")  && userRole === "실장")  ||
+      (currentStatus.includes("본부장") && userRole === "본부장");
+    if (!isAuthorized) {
+      throw new Error("결재 권한이 없습니다. 현재 결재 단계: " + currentStatus);
+    }
+  } else if (action === 'RESUBMIT' || action === 'SOFT_DELETE' || action === 'CHG_TO_ARCHIVE') {
+    if (email.toLowerCase().trim() !== authorEmail.toLowerCase().trim()) {
+      throw new Error("본인이 작성한 보고서에만 이 작업을 수행할 수 있습니다.");
+    }
+  } else if (action === 'FORCE_ARCHIVE') {
+    const isLeader = (userRole === "팀장" || userRole === "실장" || userRole === "본부장");
+    if (!isLeader) {
+      throw new Error("팀장 이상의 리더 권한이 필요합니다.");
+    }
+  }
+
   if (action === 'APPROVE') {
     // 🚨 [핵심 로직] 현재 승인자가 최종 전결 대상인지 확인
     if (userInfo.role === targetRole) {
@@ -593,14 +615,14 @@ function updateReportStatus(reportId, action, comment) {
     // 이메일 템플릿용 실시간 데이터 바인딩 객체 조립 (보고DB 데이터 컬럼 매핑 스펙)
     const reportObj = {
       id: reportId,
-      dept: reportRow[2],        // C열: 부서명
-      team: reportRow[3],        // D열: 팀명
-      author: reportRow[4],      // E열: 기안자 성명
-      authorEmail: reportRow[5], // F열: 기안자 이메일
-      title: reportRow[6],       // G열: 보고서 제목
-      url: reportRow[7],         // H열: 문서 원본 주소
-      reportType: reportRow[8],  // I열: 서면/대면 유형
-      aiSummary: reportRow[9],   // J열: Vertex AI 분석 요약문
+      dept:        reportRow[5],   // F열: 소속실
+      team:        reportRow[6],   // G열: 소속팀
+      author:      reportRow[4],   // E열: 기안자 성명
+      authorEmail: reportRow[3],   // D열: 기안자 이메일
+      title:       reportRow[7],   // H열: 보고서 제목
+      url:         reportRow[8],   // I열: 파일 URL
+      reportType:  reportRow[17],  // R열: 보고 유형
+      aiSummary:   reportRow[9],   // J열: AI 요약
       status: nextStatus
     };
 
@@ -622,6 +644,33 @@ function updateReportStatus(reportId, action, comment) {
   }
 
   return { success: true, nextStatus: nextStatus };
+}
+
+// =========================================================================
+// [내부 유틸] 신규 파일 생성 및 권한 부여 (기존 URL 없을 때 updateReportDocument에서 호출)
+// =========================================================================
+function createNewFile(blob, payload) {
+  const folderId = "1ayuewDy5BDH5qepAxHtkfP4NOBii1A5z";
+  const folder = DriveApp.getFolderById(folderId);
+  const file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
+
+  const accessEmails = new Set();
+  if (payload.email) accessEmails.add(payload.email);
+  if (payload.sharedUsers) {
+    payload.sharedUsers.split(',').forEach(e => accessEmails.add(e.trim()));
+  }
+  try {
+    const superiors = getSuperiors(payload.office || "", payload.team || "");
+    superiors.forEach(e => accessEmails.add(e));
+  } catch (e) {
+    Logger.log("createNewFile 권한 추출 실패: " + e.message);
+  }
+
+  const fileId = file.getId();
+  accessEmails.forEach(email => grantSilentPermission(fileId, email));
+
+  return file.getUrl();
 }
 
 // =========================================================================
@@ -748,10 +797,11 @@ function updateReportDocument(payload) {
 // 11. [API] 보고서 요약 내용 수정 로직
 // =========================================================================
 function updateReportSummary(reportId, newSummary, modifierName) {
+  const callerEmail = Session.getActiveUser().getEmail();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const dbSheet = ss.getSheetByName('보고DB');
   const data = dbSheet.getDataRange().getValues();
-  
+
   let rowIndex = -1;
   // 수정할 보고서의 행 찾기
   for (let i = 1; i < data.length; i++) {
@@ -761,6 +811,12 @@ function updateReportSummary(reportId, newSummary, modifierName) {
     }
   }
   if (rowIndex === -1) throw new Error("보고서를 찾을 수 없습니다.");
+
+  // 작성자 본인만 AI 요약 수정 가능
+  const reportAuthorEmail = String(data[rowIndex-1][3] || "");
+  if (callerEmail.toLowerCase().trim() !== reportAuthorEmail.toLowerCase().trim()) {
+    throw new Error("본인이 작성한 보고서의 AI 요약만 수정할 수 있습니다.");
+  }
 
   // J열(10번째 열) 요약 내용 업데이트
   dbSheet.getRange(rowIndex, 10).setValue(newSummary);
