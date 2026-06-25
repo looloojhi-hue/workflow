@@ -4067,12 +4067,12 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
                 </div>
                 <div className="flex gap-2">
                   <select value={newMs.type} onChange={e => setNewMs({...newMs, type: e.target.value, linkedReportId: ''})} className="px-2 py-1.5 text-[11px] border border-slate-200 rounded-lg focus:outline-none bg-white">
-                    <option value="event">독립 이정표</option><option value="report">보고서 연결</option>
+                    <option value="event">이정표</option><option value="report">보고서 연결</option>
                   </select>
                   {newMs.type === 'report' && (
-                    <select value={newMs.linkedReportId} onChange={e => { const r = safeReports.find(r => r.id === e.target.value); setNewMs({...newMs, linkedReportId: e.target.value, title: newMs.title || (r ? r.title : '')}); }} className="flex-1 px-2 py-1.5 text-[11px] border border-slate-200 rounded-lg focus:outline-none bg-white">
+                    <select value={newMs.linkedReportId} onChange={e => { const r = relatedReports.find(r => r.id === e.target.value); setNewMs({...newMs, linkedReportId: e.target.value, title: newMs.title || (r ? r.title : '')}); }} className="flex-1 px-2 py-1.5 text-[11px] border border-slate-200 rounded-lg focus:outline-none bg-white">
                       <option value="">보고서 선택...</option>
-                      {safeReports.map(r => <option key={r.id} value={r.id}>{r.title.slice(0,25)}{r.title.length>25?'…':''}</option>)}
+                      {relatedReports.map(r => <option key={r.id} value={r.id}>{r.title.slice(0,25)}{r.title.length>25?'…':''}</option>)}
                     </select>
                   )}
                 </div>
