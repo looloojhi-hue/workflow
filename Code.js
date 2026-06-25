@@ -94,7 +94,8 @@ function submitReport(formData) {
       formData.sharedUsers.split(',').forEach(e => accessEmails.add(e.trim())); 
     }
     
-    const superiors = getSuperiors(formData.office, formData.team);
+    const authData = getAuthData();
+    const superiors = getSuperiors(formData.office, formData.team, authData);
     superiors.forEach(e => accessEmails.add(e));
 
     // 🚨 [보안/알림 패치] 이메일 발송 없이 조용히 권한 부여
@@ -123,13 +124,12 @@ function submitReport(formData) {
     aiKeywords = aiResult.keywords;
   }
 
-  // C. 접속자 직책 파악
-  const authSheet = ss.getSheetByName('권한관리');
-  const authData = authSheet.getDataRange().getValues();
+  // C. 접속자 직책 파악 (파일 업로드 분기에서 이미 로드한 authData 재사용, 없으면 로드)
+  const authDataForRole = (typeof authData !== 'undefined') ? authData : getAuthData();
   let myRole = "팀원";
-  for (let i = 1; i < authData.length; i++) {
-    if (authData[i][1] === formData.email) {
-      myRole = authData[i][2]; 
+  for (let i = 1; i < authDataForRole.length; i++) {
+    if (authDataForRole[i][1] === formData.email) {
+      myRole = authDataForRole[i][2];
       break;
     }
   }
@@ -185,11 +185,11 @@ function submitReport(formData) {
 
       // 초기 셋팅된 대기 단계에 맞춰 상위 직책자 맞춤형 라우팅 전송
       if (initialStatus === "[팀장 대기]") {
-        triggerReportNotification('SUBMIT', reportObj); // 팀원 제출 ➔ 팀장 알림
+        triggerReportNotification('SUBMIT', reportObj, authDataForRole);
       } else if (initialStatus === "[실장 대기]") {
-        triggerReportNotification('APPROVE_BY_TEAM', reportObj); // 팀장 본인 기안제출 ➔ 실장 알림
+        triggerReportNotification('APPROVE_BY_TEAM', reportObj, authDataForRole);
       } else if (initialStatus === "[본부장 대기]") {
-        triggerReportNotification('APPROVE_BY_ROOM', reportObj); // 실장 본인 기안제출 ➔ 본부장 알림
+        triggerReportNotification('APPROVE_BY_ROOM', reportObj, authDataForRole);
       }
     }
   } catch (mailError) {
@@ -532,12 +532,7 @@ function updateReportStatus(reportId, action, comment) {
   
   // 2. 해당 보고서 행 찾기
   const data = dbSheet.getDataRange().getValues();
-  let rowIndex = -1;
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === reportId) { rowIndex = i + 1; break; }
-  }
-  
-  if (rowIndex === -1) throw new Error("보고서를 찾을 수 없습니다.");
+  const rowIndex = findReportRow(data, reportId);
 
   const currentStatus = data[rowIndex-1][12]; // M열
   const currentLog = data[rowIndex-1][13];    // N열
@@ -631,14 +626,14 @@ function updateReportStatus(reportId, action, comment) {
 
     // 결재 액션 및 스위칭된 차기 상태코드 스니펫 판별 처리 (CHG_TO_ARCHIVE 및 SOFT_DELETE는 무음 처리하여 불필요한 직책자 알림 폭탄 방지)
     if (action === 'REJECT') {
-      triggerReportNotification('REJECT', reportObj); // 반려 통보 메일 발송
+      triggerReportNotification('REJECT', reportObj, authData);
     } else if (action === 'RESUBMIT') {
-      triggerReportNotification('RESUBMIT', reportObj); // 재승인 ➔ 팀장 알림 메일 발송
+      triggerReportNotification('RESUBMIT', reportObj, authData);
     } else if (action === 'APPROVE') {
       if (nextStatus.includes("실장 대기")) {
-        triggerReportNotification('APPROVE_BY_TEAM', reportObj); // 팀장 승인 완료 ➔ 실장 알림 메일 발송
+        triggerReportNotification('APPROVE_BY_TEAM', reportObj, authData);
       } else if (nextStatus.includes("본부장 대기")) {
-        triggerReportNotification('APPROVE_BY_ROOM', reportObj); // 실장 승인 완료 ➔ 본부장 알림 메일 발송
+        triggerReportNotification('APPROVE_BY_ROOM', reportObj, authData);
       }
     }
   } catch (mailError) {
@@ -684,17 +679,8 @@ function updateReportDocument(payload) {
   const dbSheet = ss.getSheetByName('보고DB');
   const data = dbSheet.getDataRange().getValues();
   
-  let rowIndex = -1;
-  let existingFileUrl = "";
-  
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === payload.id) {
-      rowIndex = i + 1;
-      existingFileUrl = String(data[i][8] || ""); 
-      break;
-    }
-  }
-  if (rowIndex === -1) throw new Error("보고서를 찾을 수 없습니다.");
+  const rowIndex = findReportRow(data, payload.id);
+  const existingFileUrl = String(data[rowIndex-1][8] || "");
 
   // 🚨 [추가] 원본 보고서의 정보(이메일, 소속, 공유자 등)를 DB에서 가져옵니다.
   // (업데이트하는 사람이 원작자가 아닐 수 있기 때문에 기존 정보를 보존하여 권한을 재부여합니다)
@@ -805,15 +791,7 @@ function updateReportSummary(reportId, newSummary, modifierName) {
   const dbSheet = ss.getSheetByName('보고DB');
   const data = dbSheet.getDataRange().getValues();
 
-  let rowIndex = -1;
-  // 수정할 보고서의 행 찾기
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === reportId) {
-      rowIndex = i + 1;
-      break;
-    }
-  }
-  if (rowIndex === -1) throw new Error("보고서를 찾을 수 없습니다.");
+  const rowIndex = findReportRow(data, reportId);
 
   // 작성자 본인만 AI 요약 수정 가능
   const reportAuthorEmail = String(data[rowIndex-1][3] || "");
@@ -840,15 +818,7 @@ function updateReportTodos(reportId, todosJSON) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const dbSheet = ss.getSheetByName('보고DB');
   const data = dbSheet.getDataRange().getValues();
-
-  let rowIndex = -1;
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === reportId) {
-      rowIndex = i + 1;
-      break;
-    }
-  }
-  if (rowIndex === -1) throw new Error("보고서를 찾을 수 없습니다.");
+  const rowIndex = findReportRow(data, reportId);
 
   // O열(15번째 열) To-Do 리스트 업데이트
   dbSheet.getRange(rowIndex, 15).setValue(todosJSON);
@@ -988,14 +958,8 @@ function markReportAsRead(reportId) {
   const dbSheet = ss.getSheetByName('보고DB');
   const data = dbSheet.getDataRange().getValues();
 
-  let rowIndex = -1;
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === reportId) {
-      rowIndex = i + 1;
-      break;
-    }
-  }
-  if (rowIndex === -1) return { success: false };
+  let rowIndex;
+  try { rowIndex = findReportRow(data, reportId); } catch (e) { return { success: false }; }
 
   // P열(16번째 열) 읽은 사람 이메일 업데이트
   let readUsers = data[rowIndex-1][15] || "";
@@ -1175,16 +1139,13 @@ function insertGoogleTaskServerSide(token, title, notes) {
 // =========================================================================
 // 21. [API] 결재 워크플로우 단계별 이메일 자동 알림 전송 엔진 (🚨 실물 시트 인덱스 완벽 매칭본)
 // =========================================================================
-function triggerReportNotification(actionType, reportObj) {
+function triggerReportNotification(actionType, reportObj, authRows) {
   try {
     const PORTAL_URL = "https://script.google.com/a/macros/coway.com/s/AKfycbwI0kdNm0csBC-BLK8UYD7tdKqYX2zWtMkDgCndqa-ukYVsBv2oJ8215ZzUU9twAdx3YA/dev";
-    
+
     const reportTypeStr = reportObj.reportType === 'written' ? '서면보고' : '대면보고';
-    
-    // 🚨 [인덱스 패치] 실물 탭 이름인 '권한관리'로 명확하게 로드합니다.
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const userSheet = ss.getSheetByName("권한관리"); 
-    const userRows = userSheet.getDataRange().getValues();
+
+    const userRows = authRows || getAuthData();
     
     let targetEmail = "";
     let emailSubject = "";
@@ -1276,11 +1237,29 @@ function triggerReportNotification(actionType, reportObj) {
 }
 
 // =========================================================================
+// [내부 유틸] 권한관리 시트 데이터 로드 (중복 로드 방지용 공통 헬퍼)
+// =========================================================================
+function getAuthData() {
+  return SpreadsheetApp.getActiveSpreadsheet()
+    .getSheetByName('권한관리')
+    .getDataRange().getValues();
+}
+
+// =========================================================================
+// [내부 유틸] 보고DB에서 reportId로 행 번호 반환 (없으면 에러)
+// =========================================================================
+function findReportRow(data, reportId) {
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === reportId) return i + 1;
+  }
+  throw new Error("보고서를 찾을 수 없습니다. (ID: " + reportId + ")");
+}
+
+// =========================================================================
 // [내부 유틸] 소속 정보 기반 상위 소속장 이메일 리스트 가져오기
 // =========================================================================
-function getSuperiors(office, team) {
-  const authSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('권한관리');
-  const data = authSheet.getDataRange().getValues();
+function getSuperiors(office, team, authRows) {
+  const data = authRows || getAuthData();
   const superiors = [];
 
   for (let i = 1; i < data.length; i++) {
@@ -1321,20 +1300,7 @@ function updateLinkedReports(reportId, linkedIdsStr) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const dbSheet = ss.getSheetByName('보고DB');
     const data = dbSheet.getDataRange().getValues();
-    
-    let rowIndex = -1;
-    
-    // 수정할 보고서의 행 찾기
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] === reportId) {
-        rowIndex = i + 1;
-        break;
-      }
-    }
-    
-    if (rowIndex === -1) {
-      throw new Error("보고서를 찾을 수 없습니다.");
-    }
+    const rowIndex = findReportRow(data, reportId);
 
     // 🚨 S열(19번째 열)에 새로운 연관 보고서 ID 문자열만 단독으로 덮어쓰기
     dbSheet.getRange(rowIndex, 19).setValue(linkedIdsStr || "");
