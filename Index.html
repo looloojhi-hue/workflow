@@ -2423,9 +2423,7 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
               setViewMode(data.isLeader ? 'executive' : 'employee');
               setIsLoadingInit(false);
 
-              // 🚨 [여기를 수정합니다!] 백엔드에서 데이터가 잘 넘어오는지 콘솔에 찍어봅니다.
               google.script.run.withSuccessHandler((reports) => {
-                console.log("🔥 [프론트엔드] 백엔드에서 넘어온 보고서 데이터:", reports);
                 setMyReports(reports);
               }).getMySubmissions();
 
@@ -2436,7 +2434,7 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
           setIsLoadingInit(false);
           setUserData({ email: 'test@coway.com', name: '정해인', isLeader: true, team: '테스트팀', office: '테스트실', role: '팀장' });
         }
-      }, [activeMenu]); 
+      }, []);
 
       if (isLoadingInit) {
         return (

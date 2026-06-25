@@ -410,7 +410,10 @@ function getMySubmissions() {
     
     for (let i = data.length - 1; i > 0; i--) {
       const row = data[i];
-      if (!row[0]) continue; 
+      if (!row[0]) continue;
+
+      // 삭제된 보고서 제외
+      if (String(row[12] || "") === "[보고서 삭제됨]") continue;
 
       const authorEmail = String(row[3] || "").toLowerCase().trim();
       const rawSharedUsers = String(row[11] || "").toLowerCase();
@@ -452,8 +455,8 @@ function getMySubmissions() {
         let parsedTodos = [];
         try { parsedTodos = row[14] ? JSON.parse(row[14]) : []; } catch(e) { parsedTodos = []; }
 
-        const readUsers = String(row[15] || "").toLowerCase();
-        const isRead = readUsers.includes(email);
+        const readList = String(row[15] || "").toLowerCase().split(',').map(e => e.trim()).filter(Boolean);
+        const isRead = readList.includes(email);
 
         // 🚨 보고 일자(C열) 포맷팅 로직 (주신 코드의 핵심 부분 유지)
         const reportDateRaw = row[2];
@@ -995,8 +998,9 @@ function markReportAsRead(reportId) {
   if (rowIndex === -1) return { success: false };
 
   // P열(16번째 열) 읽은 사람 이메일 업데이트
-  let readUsers = data[rowIndex-1][15] || ""; 
-  if (!readUsers.includes(email)) {
+  let readUsers = data[rowIndex-1][15] || "";
+  const alreadyRead = readUsers.split(',').map(e => e.trim()).filter(Boolean).includes(email);
+  if (!alreadyRead) {
     readUsers = readUsers ? readUsers + "," + email : email;
     dbSheet.getRange(rowIndex, 16).setValue(readUsers);
   }
