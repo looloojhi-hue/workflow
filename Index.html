@@ -3608,6 +3608,13 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
       const [isAddingTodo, setIsAddingTodo] = useState(false);
       const [newTodoText, setNewTodoText] = useState("");
 
+      // ── 회의록 녹음 분석 상태
+      const [meetingRecords, setMeetingRecords] = useState([]);
+      const [isMeetingLoading, setIsMeetingLoading] = useState(true);
+      const [showMeetingRecorder, setShowMeetingRecorder] = useState(false);
+      const [expandedMeetingIds, setExpandedMeetingIds] = useState(new Set());
+      const [showAllMeetings, setShowAllMeetings] = useState(false);
+
       const [actionModal, setActionModal] = useState({ isOpen: false, type: '', comment: '' });
       const [isActionSubmitting, setIsActionSubmitting] = useState(false);
 
@@ -3634,6 +3641,7 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
       const [isTimelineLoading, setIsTimelineLoading] = useState(true);
       const [isTimelineExpanded, setIsTimelineExpanded] = useState(false);
       const [isMobileTimelineOpen, setIsMobileTimelineOpen] = useState(false);
+      const [isLogExpanded, setIsLogExpanded] = useState(false);
       const [isAddingMs, setIsAddingMs] = useState(false);
       const [newMs, setNewMs] = useState({ title: '', date: '', type: 'event', linkedReportId: '', status: 'upcoming' });
       const [editingMsId, setEditingMsId] = useState(null);
@@ -3813,6 +3821,34 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
         const updatedTodos = [...todos, newTodo];
         setTodos(updatedTodos); setReport({ ...report, todos: updatedTodos }); saveTodosToDB(updatedTodos);
         setNewTodoText(""); setIsAddingTodo(false);
+      };
+
+      // 회의록 로드 (마운트 시)
+      useEffect(() => {
+        google.script.run
+          .withSuccessHandler(records => {
+            const list = records || [];
+            setMeetingRecords(list);
+            if (list.length > 0) setExpandedMeetingIds(new Set([list[0].id]));
+            setIsMeetingLoading(false);
+          })
+          .withFailureHandler(() => setIsMeetingLoading(false))
+          .getMeetingRecords(report.id);
+      }, [report.id]);
+
+      // 회의록 분석 완료 후 TODO 일괄 등록
+      const handleBulkAddTodos = (todoTexts) => {
+        if (!todoTexts || todoTexts.length === 0) return;
+        const newItems = todoTexts.map((text, i) => ({
+          id: Date.now() + i,
+          text: text,
+          completed: false,
+          creatorName: userData.name + ' (회의록)'
+        }));
+        const updated = [...todos, ...newItems];
+        setTodos(updated);
+        setReport({ ...report, todos: updated });
+        saveTodosToDB(updated);
       };
 
       const handleSaveSummary = () => {
@@ -4281,164 +4317,657 @@ const NewReportForm = ({ setActiveMenu, userData, userList, orgData, reports = [
               )}
             </div>
 
-            {/* 🚨 [통합 패치 완료] 이 상자 하나 안에서 타이틀, 버튼, 타임라인, 결재선이 완벽히 정렬됩니다. */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
-              
-              {/* 타이틀 헤더 영역: [보고서 전환 / 삭제] 버튼과 타이틀의 깔끔한 수평 밸런스 */}
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                  <Icon name="forum" className="text-slate-500" /> 리더십 피드백 진행 이력
-                </h2>
+            {/* ── 회의록 분석 섹션 ── */}
+            {(() => {
+              const MEETING_VISIBLE = 3;
+              const visibleMeetings = showAllMeetings ? meetingRecords : meetingRecords.slice(0, MEETING_VISIBLE);
+              const roleColor = { '본부장': 'bg-purple-100 text-purple-700', '실장': 'bg-blue-100 text-blue-700', '팀장': 'bg-indigo-100 text-indigo-700' };
+              const fmtMeetingTs = (ts) => {
+                if (!ts) return '';
+                const d = new Date(ts);
+                if (isNaN(d)) return String(ts).substring(0, 16);
+                const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+                const h = String(d.getHours()).padStart(2,'0'), mi = String(d.getMinutes()).padStart(2,'0');
+                return `기록일시  ${y}.${mo}.${day} ${h}:${mi}`;
+              };
 
-                {/* 🚨 오직 최초 '[팀장 대기]' 상태에서만 보고자 본인에게 노출 (우측 상단 아웃라인 버튼셋) */}
-                {isMyReport && report.status === '[팀장 대기]' && (
-                  <div className="flex items-center gap-2 animate-[fadeIn_0.15s_ease-out]">
-                    <button
-                      onClick={() => {
-                            Swal.fire({
-                              title: '완료 보고서로 전환',
-                              text: '해당 보고서를 보고가 완료된 보고서로 전환하시겠습니까?',
-                              icon: 'success', // 👈 ❓에서 🟢 체크마크로 변경하여 신뢰감 부여
-                              showCancelButton: true,
-                              confirmButtonColor: '#10B981', // 초록색 버튼 톤 유지
-                              cancelButtonColor: '#64748B',
-                              confirmButtonText: '전환하기', // '예' 대신 명확한 액션 키워드로 변경
-                              cancelButtonText: '취소'
-                            }).then((result) => {
-                              if (result.isConfirmed) {
-                                google.script.run
-                                  .withSuccessHandler(() => {
-                                    Swal.fire('전환 완료', '완료 보관함 문서로 즉시 전환되었습니다.', 'success').then(() => goBack(true));
-                                  })
-                                  .withFailureHandler((err) => Swal.fire('오류', err.message, 'error'))
-                                  .updateReportStatus(report.id, 'CHG_TO_ARCHIVE', '보고자 본인에 의한 완료 보고서 전환 처리');
-                              }
-                            });
-                          }}
-                      className="px-3.5 py-1.5 bg-white border border-emerald-200 text-emerald-600 rounded-xl text-xs font-bold hover:bg-emerald-50 transition-colors flex items-center gap-1.5 shadow-sm"
-                    >
-                      <span className="material-symbols-rounded text-[16px]">verified</span> 완료 보고서로 전환
-                    </button>
+              const toggleMeeting = (id) => {
+                setExpandedMeetingIds(prev => {
+                  const next = new Set(prev);
+                  next.has(id) ? next.delete(id) : next.add(id);
+                  return next;
+                });
+              };
 
-                    <button
-                      onClick={() => {
-                            Swal.fire({
-                              title: '보고서 삭제',
-                              text: '이 보고서를 삭제하시겠습니까?',
-                              icon: 'warning', // 👈 주의/삭제 경고 아이콘 유지
-                              showCancelButton: true,
-                              confirmButtonColor: '#EF4444', // 위험을 알리는 소프트 레드 컬러
-                              cancelButtonColor: '#64748B',
-                              confirmButtonText: '삭제하기',
-                              cancelButtonText: '취소'
-                            }).then((result) => {
-                              if (result.isConfirmed) {
-                                google.script.run
-                                  .withSuccessHandler(() => {
-                                    Swal.fire('삭제 완료', '보고서가 삭제되었습니다.', 'success').then(() => goBack(true));
-                                  })
-                                  .withFailureHandler((err) => Swal.fire('오류', err.message, 'error'))
-                                  .updateReportStatus(report.id, 'SOFT_DELETE', '보고자 본인이 보고서를 삭제함');
-                              }
-                            });
-                          }}
-                      className="px-3.5 py-1.5 bg-white border border-red-200 text-red-600 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors flex items-center gap-1.5 shadow-sm"
-                    >
-                      <span className="material-symbols-rounded text-[16px]">delete</span> 보고서 삭제
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* 순정 타임라인 로그 본문 영역 (100% 완전 보존) */}
-              <div className="relative pl-4 border-l-2 border-slate-100 space-y-6 ml-2">
-                {parsedLogs.map((log) => (
-                  <div key={log.id} className="relative">
-                    <div className={`absolute -left-[23px] top-1 w-3 h-3 ${log.dotColor} rounded-full border-2`}></div>
-                    <div className="mb-1.5 flex items-center justify-between"><span className="text-xs text-slate-400 font-medium">{log.time}</span></div>
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                      {log.content.includes(':') ? (
-                        <div className="flex flex-col">
-                          <div className="font-bold text-slate-800 mb-1">{log.content.split(':')[0]}</div>
-                          <div>{log.content.substring(log.content.indexOf(':') + 1).trim()}</div>
-                        </div>
-                      ) : (<span className="font-medium">{log.content}</span>)}
+              return (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  {/* 헤더 */}
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <Icon name="mic" className="text-red-500 text-[20px]" />
+                      <span className="font-bold text-slate-800">회의록 분석</span>
+                      {meetingRecords.length > 0 && (
+                        <span className="text-[11px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">{meetingRecords.length}건</span>
+                      )}
                     </div>
+                    <button
+                      onClick={() => setShowMeetingRecorder(true)}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 bg-red-500 text-white text-xs font-bold rounded-xl hover:bg-red-600 transition-colors shadow-sm"
+                    >
+                      <Icon name="fiber_manual_record" className="text-[13px] animate-pulse" /> 녹음 시작
+                    </button>
                   </div>
-                ))}
-              </div>
 
-              {/* 하단 리더용 승인/반려 결재 버튼 엔진 영역 */}
-              {(() => {
-                const isFinished = report.status.includes('승인 완료') || report.status.includes('최종 승인') || report.status.includes('반려');
-                const canApprove = userData.isLeader && report.status.includes(`${userData.role} 대기`);
-                const isWaitingForOthers = userData.isLeader && !isFinished && !canApprove;
+                  {/* 회의록 카드 목록 */}
+                  {isMeetingLoading ? (
+                    <div className="px-6 py-5 text-center text-xs text-slate-400">불러오는 중...</div>
+                  ) : meetingRecords.length === 0 ? (
+                    <div className="px-6 py-6 text-center">
+                      <Icon name="mic_off" className="text-slate-300 text-[32px] block mx-auto mb-2" />
+                      <p className="text-xs text-slate-400">등록된 회의록이 없습니다.<br/>녹음 시작 버튼으로 회의를 분석하세요.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {visibleMeetings.map((rec) => {
+                        const isExpanded = expandedMeetingIds.has(rec.id);
+                        const chipCls = roleColor[rec.recorderRole] || 'bg-slate-100 text-slate-600';
+                        return (
+                          <div key={rec.id}>
+                            <button
+                              onClick={() => toggleMeeting(rec.id)}
+                              className="w-full flex items-center justify-between px-6 py-3.5 hover:bg-slate-50 transition-colors text-left"
+                            >
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <Icon name="person" className="text-slate-400 text-[14px] shrink-0" />
+                                  <span className="text-[11px] font-bold text-slate-500">회의록 기록자</span>
+                                  <span className="text-sm font-semibold text-slate-700 truncate">{rec.recorderName}</span>
+                                </div>
+                                <span className="text-[11px] text-slate-400 pl-5">{fmtMeetingTs(rec.timestamp)}</span>
+                              </div>
+                              <Icon name={isExpanded ? 'expand_less' : 'expand_more'} className="text-slate-400 text-[18px] shrink-0 ml-2" />
+                            </button>
 
-                if (!canApprove && !isWaitingForOthers && !(isMyReport && report.status.includes('반려')) && !(userData.isLeader && !isFinished)) {
-                  return null; // 출력할 하단 버튼이 없으면 깔끔하게 닫기
-                }
+                            {isExpanded && (
+                              <div className="px-6 pb-5 space-y-4 bg-slate-50/60">
+                                {/* 회의 요약 */}
+                                <div>
+                                  <div className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wide mb-1.5 pt-3">회의 요약</div>
+                                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-white p-3.5 rounded-xl border border-slate-100">{rec.summary || '요약 없음'}</p>
+                                </div>
+
+                                {/* 주요 의사결정 */}
+                                {rec.decisions && rec.decisions.length > 0 && (
+                                  <div>
+                                    <div className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">주요 의사결정</div>
+                                    <ul className="space-y-1.5">
+                                      {rec.decisions.map((d, i) => (
+                                        <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                                          <span className="mt-1 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"></span>
+                                          {d}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {/* 등록된 TODO 개수 안내 */}
+                                {rec.todos && rec.todos.length > 0 && (
+                                  <div className="text-[11px] text-emerald-600 font-medium bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
+                                    <Icon name="check_circle" className="text-[14px] mr-1 align-text-bottom" />
+                                    이 회의록에서 TO-DO {rec.todos.length}건이 자동 등록되었습니다.
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* 더보기 */}
+                      {meetingRecords.length > MEETING_VISIBLE && (
+                        <button
+                          onClick={() => setShowAllMeetings(!showAllMeetings)}
+                          className="w-full py-2.5 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          {showAllMeetings ? '▴ 접기' : `▾ ${meetingRecords.length - MEETING_VISIBLE}개 더 보기`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* ── 회의록 녹음 모달 ── */}
+            {showMeetingRecorder && (() => {
+              const MeetingRecorderModal = () => {
+                const [inputMode, setInputMode] = React.useState('record');
+                const [recState, setRecState] = React.useState('idle'); // idle | waiting_popup | analyzing | review | error
+                const [errorMsg, setErrorMsg] = React.useState('');
+                const [result, setResult] = React.useState(null);
+                const [selectedFileName, setSelectedFileName] = React.useState('');
+                const fileInputRef = React.useRef(null);
+                const popupRef = React.useRef(null);
+
+                // 팝업에서 오디오 수신 → 메인 앱에서 AI 분석
+                React.useEffect(() => {
+                  const handler = (event) => {
+                    if (!event.data || event.data.type !== 'AUDIO_READY') return;
+                    if (popupRef.current && !popupRef.current.closed) popupRef.current.close();
+                    setRecState('analyzing');
+                    const { base64, mimeType } = event.data;
+                    google.script.run
+                      .withSuccessHandler(res => {
+                        if (!res.success) { setErrorMsg(res.message || 'AI 분석 중 오류가 발생했습니다.'); setRecState('error'); return; }
+                        setMeetingRecords(prev => [{ ...res, id: res.meetingId }, ...prev]);
+                        setExpandedMeetingIds(new Set([res.meetingId]));
+                        handleBulkAddTodos(res.todos);
+                        setShowMeetingRecorder(false);
+                      })
+                      .withFailureHandler(err => { setErrorMsg(err.message || '서버 오류가 발생했습니다.'); setRecState('error'); })
+                      .analyzeMeetingAudio(base64, mimeType, report.id);
+                  };
+                  window.addEventListener('message', handler);
+                  return () => window.removeEventListener('message', handler);
+                }, []);
+
+                // about:blank 팝업에 녹음기 HTML 직접 주입 (iframe 없는 최상위 컨텍스트 → 마이크 허용 가능)
+                const openRecorderPopup = () => {
+                  setErrorMsg('');
+                  const recorderHtml = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>회의록 녹음</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:#f8f9fc;color:#1c2b44;display:flex;flex-direction:column;align-items:center;padding:24px 20px;min-height:100vh}
+  .card{background:#fff;border-radius:20px;border:1px solid #e2e6ef;padding:28px 24px;width:100%;max-width:380px;box-shadow:0 4px 20px rgba(0,0,0,.06)}
+  .hdr{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid #f0f2f7}
+  .dot{width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block}
+  .info{background:#f8f9fc;border:1px solid #e2e6ef;border-radius:12px;padding:14px 16px;font-size:13px;color:#4a5a72;line-height:1.6;margin-bottom:20px}
+  .info small{font-size:11.5px;color:#94a3b8;display:block;margin-top:4px}
+  .btn{width:100%;padding:13px;border-radius:12px;border:none;cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn-red{background:#ef4444;color:#fff}.btn-red:hover:not(:disabled){background:#dc2626}
+  .btn-dark{background:#1e293b;color:#fff}.btn-dark:hover:not(:disabled){background:#0f172a}
+  .btn-gray{background:#f1f5f9;color:#475569}.btn-gray:hover:not(:disabled){background:#e2e8f0}
+  .rec-hdr{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px}
+  .rec-dot{width:10px;height:10px;border-radius:50%;background:#ef4444;animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .rec-lbl{font-size:13px;font-weight:700;color:#ef4444}
+  .timer{font-family:monospace;font-size:28px;font-weight:700;color:#1c2b44;text-align:center;margin-bottom:14px;font-variant-numeric:tabular-nums}
+  canvas{width:100%;height:64px;border-radius:10px;background:#0f172a;display:block;margin-bottom:16px}
+  .spin-wrap{display:flex;flex-direction:column;align-items:center;gap:14px;padding:24px 0}
+  .spinner{width:48px;height:48px;border-radius:50%;border:3px solid #e0e7ff;border-top-color:#6366f1;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .err{background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px 14px;font-size:12.5px;color:#dc2626;line-height:1.55;margin-bottom:16px}
+  .ok{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:14px;font-size:13px;color:#166534;margin-bottom:16px;text-align:center}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="v-idle">
+    <div class="hdr"><span class="dot"></span> 회의록 녹음</div>
+    <div class="info">마이크로 회의 내용을 녹음합니다.<br>분석 후 녹음 파일은 즉시 삭제됩니다. 최대 90분.<small>※ 브라우저 알림창에서 마이크 허용을 눌러주세요.</small></div>
+    <div id="idle-err" class="err" style="display:none"></div>
+    <button class="btn btn-red" id="btn-start">&#9679; 녹음 시작</button>
+  </div>
+  <div id="v-rec" style="display:none">
+    <div class="rec-hdr"><div class="rec-dot"></div><span class="rec-lbl">녹음 중</span></div>
+    <div class="timer" id="timer">00:00</div>
+    <canvas id="wv"></canvas>
+    <p style="font-size:11.5px;color:#94a3b8;text-align:center;margin-bottom:16px">회의가 끝나면 정지 버튼을 눌러주세요</p>
+    <button class="btn btn-dark" id="btn-stop">&#9632; 녹음 정지 및 전송</button>
+  </div>
+  <div id="v-send" style="display:none">
+    <div class="spin-wrap">
+      <div class="spinner"></div>
+      <div style="font-size:15px;font-weight:700">전송 중...</div>
+      <div style="font-size:12.5px;color:#7b8eaa;text-align:center;line-height:1.55">메인 창으로 전송하고 있습니다.<br>잠시 후 창이 자동으로 닫힙니다.</div>
+    </div>
+  </div>
+  <div id="v-done" style="display:none">
+    <div class="ok">✅ 전송 완료!<br><small style="font-size:11px">메인 창에서 AI 분석이 시작됩니다.</small></div>
+    <button class="btn btn-gray" id="btn-close">창 닫기</button>
+  </div>
+  <div id="v-err" style="display:none">
+    <p style="font-weight:700;text-align:center;margin-bottom:12px;color:#ef4444">⚠ 오류 발생</p>
+    <div class="err" id="err-msg"></div>
+    <button class="btn btn-gray" id="btn-retry">다시 시도</button>
+  </div>
+</div>
+<script>
+  const MAX=90*60;
+  let mr=null,st=null,ch=[],ti=null,ai=null,el=0;
+  function show(id){['idle','rec','send','done','err'].forEach(v=>document.getElementById('v-'+v).style.display=(v===id?'':'none'));}
+  function fmt(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return h>0?h+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0'):String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');}
+  function stopAll(){clearInterval(ti);cancelAnimationFrame(ai);if(st)st.getTracks().forEach(t=>t.stop());}
+  function wave(s){try{const ac=new AudioContext(),an=ac.createAnalyser();an.fftSize=256;ac.createMediaStreamSource(s).connect(an);const cv=document.getElementById('wv'),c=cv.getContext('2d');cv.width=cv.offsetWidth*2;cv.height=128;function d(){const W=cv.width,H=cv.height,da=new Uint8Array(an.frequencyBinCount);an.getByteFrequencyData(da);c.clearRect(0,0,W,H);const bw=W/da.length*2.2;da.forEach((v,i)=>{const bh=(v/255)*H;c.fillStyle='rgba(239,68,68,'+(0.3+(v/255)*0.7)+')';c.fillRect(i*(bw+1),H-bh,bw,bh);});ai=requestAnimationFrame(d);}d();}catch(e){}}
+  document.getElementById('btn-start').onclick=async function(){
+    document.getElementById('idle-err').style.display='none';
+    try{
+      st=await navigator.mediaDevices.getUserMedia({audio:true});
+      ch=[];
+      const mt=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
+      mr=new MediaRecorder(st,{mimeType:mt,audioBitsPerSecond:32000});
+      mr.ondataavailable=e=>{if(e.data.size>0)ch.push(e.data);};
+      mr.onstop=()=>send(mt.split(';')[0]);
+      mr.start(1000);el=0;show('rec');
+      ti=setInterval(()=>{el++;document.getElementById('timer').textContent=fmt(el);if(el>=MAX)document.getElementById('btn-stop').click();},1000);
+      wave(st);
+    }catch(e){
+      let msg='마이크를 시작할 수 없습니다.';
+      if(e.name==='NotFoundError')msg='마이크를 찾을 수 없습니다.';
+      else if(e.name==='NotAllowedError'||e.name==='SecurityError')msg='마이크 접근이 거부되었습니다. 주소창 왼쪽 아이콘을 클릭해 마이크를 허용해주세요.';
+      const el2=document.getElementById('idle-err');el2.textContent=msg;el2.style.display='';
+    }
+  };
+  document.getElementById('btn-stop').onclick=function(){stopAll();if(mr&&mr.state!=='inactive')mr.stop();show('send');};
+  function send(mt){
+    const blob=new Blob(ch,{type:mt});
+    const r=new FileReader();
+    r.onload=function(){
+      const b64=r.result.split(',')[1];
+      if(window.opener&&!window.opener.closed){
+        window.opener.postMessage({type:'AUDIO_READY',base64:b64,mimeType:mt},'*');
+        show('done');
+        setTimeout(()=>{try{window.close();}catch(e){}},1500);
+      }else{
+        document.getElementById('err-msg').textContent='메인 창을 찾을 수 없습니다.';show('err');
+      }
+    };
+    r.onerror=function(){document.getElementById('err-msg').textContent='오디오 데이터 처리 중 오류가 발생했습니다.';show('err');};
+    r.readAsDataURL(blob);
+  }
+  document.getElementById('btn-close').onclick=()=>{try{window.close();}catch(e){}};
+  document.getElementById('btn-retry').onclick=()=>{ch=[];show('idle');};
+<\/script>
+</body>
+</html>`;
+
+                  const popup = window.open('', 'meeting_recorder', 'width=430,height=560,resizable=yes,scrollbars=no');
+                  if (!popup) {
+                    setErrorMsg('팝업이 차단되었습니다. 브라우저 주소창의 팝업 차단 아이콘을 클릭하여 허용해주세요.');
+                    return;
+                  }
+                  popup.document.open();
+                  popup.document.write(recorderHtml);
+                  popup.document.close();
+                  popupRef.current = popup;
+                  setRecState('waiting_popup');
+                };
+
+                // 공통 분석 처리 (파일 업로드용)
+                const sendToAnalyze = (blob, mimeType) => {
+                  setRecState('analyzing');
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const base64 = reader.result.split(',')[1];
+                    google.script.run
+                      .withSuccessHandler(res => {
+                        if (!res.success) { setErrorMsg(res.message || 'AI 분석 중 오류가 발생했습니다.'); setRecState('error'); return; }
+                        setMeetingRecords(prev => [{ ...res, id: res.meetingId }, ...prev]);
+                        setExpandedMeetingIds(new Set([res.meetingId]));
+                        handleBulkAddTodos(res.todos);
+                        setShowMeetingRecorder(false);
+                      })
+                      .withFailureHandler(err => { setErrorMsg(err.message || '서버 오류가 발생했습니다.'); setRecState('error'); })
+                      .analyzeMeetingAudio(base64, mimeType.split(';')[0], report.id);
+                  };
+                  reader.readAsDataURL(blob);
+                };
+
+                const handleFileSelect = (e) => {
+                  const file = e.target.files && e.target.files[0];
+                  if (!file) return;
+                  setSelectedFileName(file.name);
+                  setErrorMsg('');
+                };
+
+                const handleFileAnalyze = () => {
+                  const file = fileInputRef.current && fileInputRef.current.files[0];
+                  if (!file) { setErrorMsg('파일을 먼저 선택해주세요.'); return; }
+                  sendToAnalyze(file, file.type || 'audio/mpeg');
+                };
+
+                const closeModal = () => {
+                  if (popupRef.current && !popupRef.current.closed) popupRef.current.close();
+                  setShowMeetingRecorder(false);
+                };
+
+                const isProcessing = recState === 'analyzing';
+                const isWaiting = recState === 'waiting_popup';
 
                 return (
-                  <div className="pt-4 border-t border-slate-100">
-                    {/* 리더용 과거 완료 보고서 오등록 구제용 버튼 */}
-                    {userData.isLeader && !isFinished && (
-                      <div className="flex justify-start mb-4">
-                        <button
-                          onClick={() => {
-                            Swal.fire({
-                              title: '완료 보고서 처리',
-                              text: '이 보고서를 [최종 완료 보고서]로 전환하시겠습니까? (팀원의 과거 보고 문서 오등록 구제용)',
-                              icon: 'warning',
-                              showCancelButton: true,
-                              confirmButtonColor: '#10B981',
-                              cancelButtonColor: '#64748B',
-                              confirmButtonText: '네, 완료 처리합니다',
-                              cancelButtonText: '취소'
-                            }).then((result) => {
-                              if (result.isConfirmed) {
-                                google.script.run
-                                  .withSuccessHandler((res) => {
-                                    Swal.fire('전환 완료', '본 보고서가 즉시 완료 보관함 상태로 정상 처리되었습니다.', 'success').then(() => goBack(true));
-                                  })
-                                  .withFailureHandler((err) => Swal.fire('오류', err.message, 'error'))
-                                  .updateReportStatus(report.id, 'FORCE_ARCHIVE', '과거 완료 보고서 오등록 건으로 인한 리더 강제 완료 처리');
-                              }
-                            });
-                          }}
-                          className="px-4 py-2 bg-white border border-emerald-500 text-emerald-600 rounded-xl text-xs font-bold hover:bg-emerald-50 transition-colors flex items-center gap-1.5 shadow-sm"
-                        >
-                          <Icon name="verified" className="text-[16px]" /> 완료 보고서로 처리
-                        </button>
-                      </div>
-                    )}
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
 
-                    {canApprove && (
-                      <div className="flex justify-end gap-3">
-                        <button onClick={() => openActionModal('REJECT')} className="px-6 py-2.5 bg-white border border-amber-200 text-amber-600 rounded-xl font-bold hover:bg-amber-50 transition-colors flex items-center gap-1 shadow-sm">
-                          <Icon name="edit_document" className="text-[18px]"/> 피드백 / 반려
-                        </button>
-                        <button onClick={() => openActionModal('APPROVE')} className="px-6 py-2.5 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors shadow-sm flex items-center gap-1">
-                          <Icon name="check" className="text-[18px]"/> 승인
-                        </button>
-                      </div>
-                    )}
-                    {isWaitingForOthers && (
-                      <div className="flex items-center justify-center p-4 bg-slate-50 rounded-xl border border-slate-200 border-dashed text-slate-500 text-sm font-medium">
-                        <Icon name="info" className="mr-2 text-slate-400 text-[20px]" />
-                        현재 <span className="font-bold text-slate-700 mx-1">{report.status}</span> 단계입니다. 열람 및 후속 조치(To-Do) 작성만 가능합니다.
-                      </div>
-                    )}
-                    {isMyReport && report.status.includes('반려') && (
-                      <div className="flex justify-end gap-3">
-                        <button onClick={() => openActionModal('RESUBMIT')} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2">
-                          <Icon name="send" className="text-[18px]"/> 재승인 요청하기
+                      {/* 헤더 */}
+                      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                        <div className="flex items-center gap-2 font-bold text-slate-800">
+                          <Icon name="mic" className="text-red-500" /> 회의록 분석
+                        </div>
+                        <button onClick={closeModal} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-30">
+                          <Icon name="close" className="text-[20px]" />
                         </button>
                       </div>
-                    )}
+
+                      {/* 탭 (idle 상태에서만) */}
+                      {recState === 'idle' && (
+                        <div className="flex border-b border-slate-100">
+                          <button onClick={() => { setInputMode('record'); setErrorMsg(''); }}
+                            className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-1.5 transition-colors ${inputMode === 'record' ? 'text-red-500 border-b-2 border-red-500' : 'text-slate-400 hover:text-slate-600'}`}>
+                            <Icon name="mic" className="text-[16px]" /> 실시간 녹음
+                          </button>
+                          <button onClick={() => { setInputMode('upload'); setErrorMsg(''); }}
+                            className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-1.5 transition-colors ${inputMode === 'upload' ? 'text-indigo-500 border-b-2 border-indigo-500' : 'text-slate-400 hover:text-slate-600'}`}>
+                            <Icon name="upload_file" className="text-[16px]" /> 파일 업로드
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="px-6 py-6">
+
+                        {/* IDLE · 실시간 녹음 탭 → 팝업 방식 */}
+                        {recState === 'idle' && inputMode === 'record' && (
+                          <div className="space-y-5">
+                            <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm text-slate-600 leading-relaxed">
+                              <Icon name="info" className="text-slate-400 text-[18px] shrink-0 mt-0.5" />
+                              <span>별도 팝업 창에서 마이크로 녹음합니다. 녹음 파일은 분석 후 즉시 삭제됩니다. 최대 90분.<br/>
+                              <span className="text-xs text-slate-400 mt-1 block">※ 팝업이 차단될 경우 주소창의 팝업 차단 아이콘을 클릭하여 허용해주세요.</span></span>
+                            </div>
+                            {errorMsg && (
+                              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                                <p className="font-bold mb-1">⚠ 팝업 차단</p>
+                                <p>{errorMsg}</p>
+                              </div>
+                            )}
+                            <button onClick={openRecorderPopup} className="w-full py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-sm flex items-center justify-center gap-2">
+                              <Icon name="open_in_new" className="text-[16px]" /> 녹음 팝업 열기
+                            </button>
+                          </div>
+                        )}
+
+                        {/* WAITING POPUP */}
+                        {isWaiting && (
+                          <div className="text-center space-y-4 py-4">
+                            <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto">
+                              <Icon name="mic" className="text-red-500 text-[28px]" />
+                            </div>
+                            <p className="font-bold text-slate-800">팝업 창에서 녹음 중</p>
+                            <p className="text-sm text-slate-500 leading-relaxed">열린 팝업 창에서 녹음을 진행해주세요.<br/>녹음이 끝나면 결과가 자동으로 여기에 표시됩니다.</p>
+                            <div className="flex justify-center gap-1.5 pt-2">
+                              {[0,1,2].map(i => (
+                                <span key={i} className="w-2 h-2 rounded-full bg-red-300 animate-bounce" style={{animationDelay: i*0.15+'s'}}></span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* IDLE · 파일 업로드 탭 */}
+                        {recState === 'idle' && inputMode === 'upload' && (
+                          <div className="space-y-4">
+                            <p className="text-sm text-slate-500 leading-relaxed">
+                              폰이나 PC에서 미리 녹음한 파일을 업로드하면 AI가 동일하게 분석합니다.<br/>
+                              <span className="text-xs text-slate-400">지원 형식: mp3, m4a, wav, ogg, webm, mp4 등</span>
+                            </p>
+                            <label className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-slate-200 rounded-xl p-8 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors">
+                              <Icon name="upload_file" className="text-slate-300 text-[40px]" />
+                              <span className="text-sm font-bold text-slate-500">{selectedFileName || '파일을 선택하세요'}</span>
+                              <input ref={fileInputRef} type="file" accept="audio/*,video/mp4,video/webm" className="hidden" onChange={handleFileSelect} />
+                            </label>
+                            {errorMsg && <p className="text-xs text-red-500 bg-red-50 p-3 rounded-xl">{errorMsg}</p>}
+                            <button onClick={handleFileAnalyze} disabled={!selectedFileName} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+                              <Icon name="auto_awesome" className="text-[16px]" /> AI 분석 시작
+                            </button>
+                          </div>
+                        )}
+
+                        {/* ANALYZING */}
+                        {isProcessing && (
+                          <div className="text-center space-y-4 py-6">
+                            <div className="relative w-14 h-14 mx-auto">
+                              <div className="absolute inset-0 rounded-full border-4 border-indigo-100 animate-spin" style={{borderTopColor:'#6366f1'}}></div>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Icon name="auto_awesome" className="text-indigo-500 text-[22px]" />
+                              </div>
+                            </div>
+                            <p className="font-bold text-slate-800">AI 분석 중...</p>
+                            <p className="text-sm text-slate-500">Gemini가 회의 내용을 요약하고 있습니다.<br/>분량에 따라 30초~2분이 소요됩니다.</p>
+                            <p className="text-[11px] text-slate-400 bg-slate-50 px-3 py-2 rounded-lg">녹음 파일은 분석 완료 후 즉시 삭제됩니다</p>
+                          </div>
+                        )}
+
+                        {/* ERROR */}
+                        {recState === 'error' && (
+                          <div className="text-center space-y-4">
+                            <Icon name="error" className="text-red-400 text-[40px] block mx-auto" />
+                            <p className="font-bold text-slate-800">분석 실패</p>
+                            <p className="text-sm text-red-600 bg-red-50 p-3 rounded-xl text-left">{errorMsg}</p>
+                            <button onClick={() => { setRecState('idle'); setErrorMsg(''); }} className="w-full py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors">다시 시도</button>
+                          </div>
+                        )}
+
+                        {/* REVIEW */}
+                        {recState === 'review' && result && (
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-emerald-600 font-bold">
+                              <Icon name="check_circle" className="text-[20px]" /> 분석 완료!
+                            </div>
+                            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                              <div>
+                                <div className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">회의 요약</div>
+                                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100 whitespace-pre-wrap">{result.summary}</p>
+                              </div>
+                              {result.decisions && result.decisions.length > 0 && (
+                                <div>
+                                  <div className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">주요 의사결정 ({result.decisions.length}건)</div>
+                                  <ul className="space-y-1.5">
+                                    {result.decisions.map((d, i) => (
+                                      <li key={i} className="flex items-start gap-2 text-sm text-slate-700 bg-blue-50 p-2.5 rounded-lg">
+                                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"></span>{d}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {result.todos && result.todos.length > 0 && (
+                                <div>
+                                  <div className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">TO-DO 자동 등록 ({result.todos.length}건)</div>
+                                  <ul className="space-y-1.5">
+                                    {result.todos.map((t, i) => (
+                                      <li key={i} className="flex items-start gap-2 text-sm text-slate-700 bg-emerald-50 p-2.5 rounded-lg">
+                                        <Icon name="check_box" className="text-emerald-500 text-[16px] shrink-0 mt-0.5" />{t}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  <p className="text-[11px] text-emerald-600 mt-1.5">위 항목들이 하단 TO-DO 섹션에 자동 등록되었습니다.</p>
+                                </div>
+                              )}
+                            </div>
+                            <button onClick={closeModal} className="w-full py-2.5 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 transition-colors">
+                              확인 후 닫기
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 );
-              })()}
-            </div>
+              };
+              return <MeetingRecorderModal />;
+            })()}
+
+            {/* 리더십 피드백 진행 이력 */}
+            {(() => {
+              const LOG_LIMIT = 5;
+              const isFinished = report.status.includes('승인 완료') || report.status.includes('최종 승인') || report.status.includes('반려');
+              const canApprove = userData.isLeader && report.status.includes(`${userData.role} 대기`);
+              const isWaitingForOthers = userData.isLeader && !isFinished && !canApprove;
+              const visibleLogs = isLogExpanded ? parsedLogs : parsedLogs.slice(0, LOG_LIMIT);
+              const hasMoreLogs = parsedLogs.length > LOG_LIMIT;
+
+              return (
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+
+                  {/* 헤더: 타이틀 + 모든 액션 버튼 통합 */}
+                  <div className="flex items-start justify-between border-b border-slate-100 pb-4 gap-3">
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 shrink-0">
+                      <Icon name="forum" className="text-slate-500" /> 리더십 피드백 진행 이력
+                    </h2>
+
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {/* 보고자: 팀장 대기 단계에서만 전환/삭제 */}
+                      {isMyReport && report.status === '[팀장 대기]' && (
+                        <>
+                          <button
+                            onClick={() => {
+                              Swal.fire({
+                                title: '완료 보고서로 전환',
+                                text: '해당 보고서를 보고가 완료된 보고서로 전환하시겠습니까?',
+                                icon: 'success',
+                                showCancelButton: true,
+                                confirmButtonColor: '#10B981',
+                                cancelButtonColor: '#64748B',
+                                confirmButtonText: '전환하기',
+                                cancelButtonText: '취소'
+                              }).then((result) => {
+                                if (result.isConfirmed) {
+                                  google.script.run
+                                    .withSuccessHandler(() => {
+                                      Swal.fire('전환 완료', '완료 보관함 문서로 즉시 전환되었습니다.', 'success').then(() => goBack(true));
+                                    })
+                                    .withFailureHandler((err) => Swal.fire('오류', err.message, 'error'))
+                                    .updateReportStatus(report.id, 'CHG_TO_ARCHIVE', '보고자 본인에 의한 완료 보고서 전환 처리');
+                                }
+                              });
+                            }}
+                            className="px-3.5 py-1.5 bg-white border border-emerald-200 text-emerald-600 rounded-xl text-xs font-bold hover:bg-emerald-50 transition-colors flex items-center gap-1.5 shadow-sm"
+                          >
+                            <span className="material-symbols-rounded text-[16px]">verified</span> 완료 보고서로 전환
+                          </button>
+                          <button
+                            onClick={() => {
+                              Swal.fire({
+                                title: '보고서 삭제',
+                                text: '이 보고서를 삭제하시겠습니까?',
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonColor: '#EF4444',
+                                cancelButtonColor: '#64748B',
+                                confirmButtonText: '삭제하기',
+                                cancelButtonText: '취소'
+                              }).then((result) => {
+                                if (result.isConfirmed) {
+                                  google.script.run
+                                    .withSuccessHandler(() => {
+                                      Swal.fire('삭제 완료', '보고서가 삭제되었습니다.', 'success').then(() => goBack(true));
+                                    })
+                                    .withFailureHandler((err) => Swal.fire('오류', err.message, 'error'))
+                                    .updateReportStatus(report.id, 'SOFT_DELETE', '보고자 본인이 보고서를 삭제함');
+                                }
+                              });
+                            }}
+                            className="px-3.5 py-1.5 bg-white border border-red-200 text-red-600 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors flex items-center gap-1.5 shadow-sm"
+                          >
+                            <span className="material-symbols-rounded text-[16px]">delete</span> 보고서 삭제
+                          </button>
+                        </>
+                      )}
+
+                      {/* 리더: 내 차례일 때 승인/반려 버튼 */}
+                      {canApprove && (
+                        <>
+                          <button onClick={() => openActionModal('REJECT')} className="px-4 py-1.5 bg-white border border-amber-200 text-amber-600 rounded-xl text-xs font-bold hover:bg-amber-50 transition-colors flex items-center gap-1 shadow-sm">
+                            <Icon name="edit_document" className="text-[16px]"/> 피드백 / 반려
+                          </button>
+                          <button onClick={() => openActionModal('APPROVE')} className="px-4 py-1.5 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 transition-colors shadow-sm flex items-center gap-1">
+                            <Icon name="check" className="text-[16px]"/> 승인
+                          </button>
+                        </>
+                      )}
+
+                      {/* 리더: 다른 단계 대기 중 상태 뱃지 */}
+                      {isWaitingForOthers && (
+                        <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-500 text-xs font-medium rounded-xl border border-slate-200">
+                          <Icon name="hourglass_empty" className="text-[14px]"/> {report.status}
+                        </span>
+                      )}
+
+                      {/* 보고자: 반려 시 재승인 요청 버튼 */}
+                      {isMyReport && report.status.includes('반려') && (
+                        <button onClick={() => openActionModal('RESUBMIT')} className="px-4 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-1.5">
+                          <Icon name="send" className="text-[16px]"/> 재승인 요청하기
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 타임라인 로그 본문 (최대 5개, 더보기로 확장) */}
+                  <div className="relative pl-4 border-l-2 border-slate-100 space-y-5 ml-2">
+                    {visibleLogs.map((log) => (
+                      <div key={log.id} className="relative">
+                        <div className={`absolute -left-[23px] top-1 w-3 h-3 ${log.dotColor} rounded-full border-2`}></div>
+                        <div className="mb-1.5 flex items-center justify-between"><span className="text-xs text-slate-400 font-medium">{log.time}</span></div>
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                          {log.content.includes(':') ? (
+                            <div className="flex flex-col">
+                              <div className="font-bold text-slate-800 mb-1">{log.content.split(':')[0]}</div>
+                              <div>{log.content.substring(log.content.indexOf(':') + 1).trim()}</div>
+                            </div>
+                          ) : (<span className="font-medium">{log.content}</span>)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 더보기 / 접기 버튼 */}
+                  {hasMoreLogs && (
+                    <button
+                      onClick={() => setIsLogExpanded(!isLogExpanded)}
+                      className="w-full py-2 text-xs font-bold text-slate-400 hover:text-slate-600 border border-dashed border-slate-200 rounded-xl hover:border-slate-300 transition-colors"
+                    >
+                      {isLogExpanded ? '▴ 접기' : `▾ ${parsedLogs.length - LOG_LIMIT}개 이력 더 보기`}
+                    </button>
+                  )}
+
+                  {/* 리더 오등록 구제 버튼 (보조 액션) */}
+                  {userData.isLeader && !isFinished && (
+                    <div className="pt-2 border-t border-slate-100">
+                      <button
+                        onClick={() => {
+                          Swal.fire({
+                            title: '완료 보고서 처리',
+                            text: '이 보고서를 [최종 완료 보고서]로 전환하시겠습니까? (팀원의 과거 보고 문서 오등록 구제용)',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonColor: '#10B981',
+                            cancelButtonColor: '#64748B',
+                            confirmButtonText: '네, 완료 처리합니다',
+                            cancelButtonText: '취소'
+                          }).then((result) => {
+                            if (result.isConfirmed) {
+                              google.script.run
+                                .withSuccessHandler(() => {
+                                  Swal.fire('전환 완료', '본 보고서가 즉시 완료 보관함 상태로 정상 처리되었습니다.', 'success').then(() => goBack(true));
+                                })
+                                .withFailureHandler((err) => Swal.fire('오류', err.message, 'error'))
+                                .updateReportStatus(report.id, 'FORCE_ARCHIVE', '과거 완료 보고서 오등록 건으로 인한 리더 강제 완료 처리');
+                            }
+                          });
+                        }}
+                        className="px-4 py-2 bg-white border border-emerald-500 text-emerald-600 rounded-xl text-xs font-bold hover:bg-emerald-50 transition-colors flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Icon name="verified" className="text-[16px]" /> 완료 보고서로 처리
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">

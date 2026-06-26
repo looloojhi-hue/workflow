@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>회의록 녹음</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: #f8f9fc; color: #1c2b44;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    min-height: 100vh; padding: 24px 20px;
+  }
+  .card {
+    background: #fff; border-radius: 20px;
+    border: 1px solid #e2e6ef; padding: 28px 24px;
+    width: 100%; max-width: 380px; box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  .header {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 16px; font-weight: 700; margin-bottom: 22px;
+    padding-bottom: 16px; border-bottom: 1px solid #f0f2f7;
+  }
+  .icon { font-family: 'Material Symbols Rounded'; font-size: 20px; line-height: 1; }
+  .icon-mic { color: #ef4444; }
+  .icon-check { color: #10b981; }
+  .icon-error { color: #ef4444; font-size: 40px; display: block; text-align: center; margin-bottom: 8px; }
+
+  /* Idle */
+  .info-box {
+    background: #f8f9fc; border: 1px solid #e2e6ef; border-radius: 12px;
+    padding: 14px 16px; font-size: 13px; color: #4a5a72; line-height: 1.6;
+    margin-bottom: 20px;
+  }
+  .info-box small { font-size: 11.5px; color: #94a3b8; display: block; margin-top: 4px; }
+
+  /* Buttons */
+  .btn {
+    width: 100%; padding: 13px; border-radius: 12px; border: none; cursor: pointer;
+    font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    gap: 8px; transition: background .15s, opacity .15s;
+  }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-red { background: #ef4444; color: #fff; }
+  .btn-red:hover:not(:disabled) { background: #dc2626; }
+  .btn-dark { background: #1e293b; color: #fff; }
+  .btn-dark:hover:not(:disabled) { background: #0f172a; }
+  .btn-gray { background: #f1f5f9; color: #475569; }
+  .btn-gray:hover:not(:disabled) { background: #e2e8f0; }
+
+  /* Recording state */
+  .rec-header {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    margin-bottom: 16px;
+  }
+  .rec-dot {
+    width: 10px; height: 10px; border-radius: 50%; background: #ef4444;
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .rec-label { font-size: 13px; font-weight: 700; color: #ef4444; }
+  .rec-timer { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 28px; font-weight: 700; color: #1c2b44; text-align: center; margin-bottom: 14px; font-variant-numeric: tabular-nums; }
+  canvas { width: 100%; height: 64px; border-radius: 10px; background: #0f172a; display: block; margin-bottom: 16px; }
+
+  /* Analyzing */
+  .spin-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px 0; }
+  .spinner {
+    width: 48px; height: 48px; border-radius: 50%;
+    border: 3px solid #e0e7ff; border-top-color: #6366f1;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .analyzing-title { font-size: 15px; font-weight: 700; color: #1c2b44; }
+  .analyzing-sub { font-size: 12.5px; color: #7b8eaa; text-align: center; line-height: 1.55; }
+  .note-badge { font-size: 11px; color: #94a3b8; background: #f8f9fc; border: 1px solid #e2e6ef; border-radius: 8px; padding: 8px 12px; margin-top: 4px; text-align: center; }
+
+  /* Error */
+  .err-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 12px 14px; font-size: 12.5px; color: #dc2626; line-height: 1.55; margin-bottom: 16px; }
+
+  /* Result summary */
+  .result-wrap { font-size: 13px; }
+  .result-section { margin-bottom: 14px; }
+  .result-label { font-size: 10.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .result-text { background: #f8f9fc; border: 1px solid #e2e6ef; border-radius: 10px; padding: 12px 14px; color: #334155; line-height: 1.6; white-space: pre-wrap; }
+  .result-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+  .result-list li { background: #eff6ff; border-radius: 8px; padding: 8px 12px; color: #1e40af; display: flex; gap: 8px; }
+  .result-list li.todo { background: #f0fdf4; color: #166534; }
+  .scroll-area { max-height: 260px; overflow-y: auto; padding-right: 2px; margin-bottom: 16px; }
+  .success-badge { display: flex; align-items: center; gap: 6px; font-weight: 700; color: #059669; font-size: 14px; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+
+<div class="card" id="app">
+
+  <!-- IDLE -->
+  <div id="view-idle">
+    <div class="header">
+      <span class="icon icon-mic">mic</span> 회의록 녹음
+    </div>
+    <div class="info-box">
+      마이크로 회의 내용을 녹음합니다.<br>
+      분석 후 녹음 파일은 즉시 삭제됩니다. 최대 90분.
+      <small>※ 브라우저에서 마이크 접근 허용을 눌러주세요.</small>
+    </div>
+    <div id="idle-error" class="err-box" style="display:none"></div>
+    <button class="btn btn-red" id="btn-start">
+      <span class="icon" style="font-size:16px">fiber_manual_record</span> 녹음 시작
+    </button>
+  </div>
+
+  <!-- RECORDING -->
+  <div id="view-recording" style="display:none">
+    <div class="rec-header">
+      <div class="rec-dot"></div>
+      <span class="rec-label">녹음 중</span>
+    </div>
+    <div class="rec-timer" id="timer-display">00:00</div>
+    <canvas id="waveform"></canvas>
+    <p style="font-size:11.5px;color:#94a3b8;text-align:center;margin-bottom:16px">회의가 끝나면 정지 버튼을 눌러주세요</p>
+    <button class="btn btn-dark" id="btn-stop">
+      <span class="icon" style="font-size:18px">stop_circle</span> 녹음 정지 및 분석 시작
+    </button>
+  </div>
+
+  <!-- ANALYZING -->
+  <div id="view-analyzing" style="display:none">
+    <div class="spin-wrap">
+      <div class="spinner"></div>
+      <div class="analyzing-title">AI 분석 중...</div>
+      <div class="analyzing-sub">Gemini가 회의 내용을 요약하고 있습니다.<br>분량에 따라 30초~2분이 소요됩니다.</div>
+      <div class="note-badge">녹음 파일은 분석 완료 후 즉시 삭제됩니다</div>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div id="view-result" style="display:none">
+    <div class="success-badge">
+      <span class="icon icon-check">check_circle</span> 분석 완료!
+    </div>
+    <div class="scroll-area" id="result-body"></div>
+    <button class="btn btn-dark" id="btn-done">확인 후 닫기</button>
+  </div>
+
+  <!-- ERROR -->
+  <div id="view-error" style="display:none">
+    <span class="icon icon-error">error</span>
+    <p style="font-weight:700;text-align:center;margin-bottom:12px">분석 실패</p>
+    <div class="err-box" id="error-msg"></div>
+    <button class="btn btn-gray" id="btn-retry">다시 시도</button>
+  </div>
+
+</div>
+
+<script>
+  const REPORT_ID = <?= JSON.stringify(reportId) ?>;
+  const MAX_SEC = 90 * 60;
+
+  let mediaRecorder = null, stream = null, chunks = [], timerInterval = null, animId = null, elapsed = 0;
+
+  function show(id) {
+    ['idle','recording','analyzing','result','error'].forEach(v => {
+      document.getElementById('view-' + v).style.display = (v === id ? '' : 'none');
+    });
+  }
+
+  function fmt(s) {
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+    return h > 0
+      ? h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0')
+      : String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+  }
+
+  function stopAll() {
+    clearInterval(timerInterval);
+    cancelAnimationFrame(animId);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+  }
+
+  function startWaveform(s) {
+    const ctx = new AudioContext();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    ctx.createMediaStreamSource(s).connect(analyser);
+    const canvas = document.getElementById('waveform');
+    const c = canvas.getContext('2d');
+    canvas.width = canvas.offsetWidth * 2;
+    canvas.height = 128;
+    function draw() {
+      const W = canvas.width, H = canvas.height;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(data);
+      c.clearRect(0,0,W,H);
+      const bw = W / data.length * 2.2;
+      data.forEach((v,i) => {
+        const bh = (v/255) * H;
+        c.fillStyle = 'rgba(239,68,68,' + (0.3 + (v/255)*0.7) + ')';
+        c.fillRect(i*(bw+1), H-bh, bw, bh);
+      });
+      animId = requestAnimationFrame(draw);
+    }
+    draw();
+  }
+
+  // 녹음 시작
+  document.getElementById('btn-start').onclick = async function() {
+    document.getElementById('idle-error').style.display = 'none';
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunks = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus' : 'audio/webm';
+      mediaRecorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 });
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+      mediaRecorder.onstop = () => processAudio(mimeType.split(';')[0]);
+      mediaRecorder.start(1000);
+      elapsed = 0;
+      show('recording');
+      timerInterval = setInterval(() => {
+        elapsed++;
+        document.getElementById('timer-display').textContent = fmt(elapsed);
+        if (elapsed >= MAX_SEC) document.getElementById('btn-stop').click();
+      }, 1000);
+      startWaveform(stream);
+    } catch(e) {
+      let msg = '마이크를 시작할 수 없습니다.';
+      if (e.name === 'NotFoundError') msg = '마이크를 찾을 수 없습니다. 마이크가 연결되어 있는지 확인해주세요.';
+      else if (e.name === 'NotAllowedError' || e.name === 'SecurityError') msg = '마이크 접근이 거부되었습니다. 브라우저 알림창에서 "허용"을 눌러주세요.';
+      const el = document.getElementById('idle-error');
+      el.textContent = msg;
+      el.style.display = '';
+    }
+  };
+
+  // 녹음 정지
+  document.getElementById('btn-stop').onclick = function() {
+    stopAll();
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    show('analyzing');
+  };
+
+  // 오디오 처리 → GAS 분석
+  function processAudio(mimeType) {
+    const blob = new Blob(chunks, { type: mimeType });
+    const reader = new FileReader();
+    reader.onload = function() {
+      const base64 = reader.result.split(',')[1];
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res.success) { showError(res.message || 'AI 분석 중 오류가 발생했습니다.'); return; }
+          // 부모 창에 결과 전달
+          if (window.opener) {
+            window.opener.postMessage({ type: 'MEETING_DONE', result: res }, '*');
+          }
+          showResult(res);
+        })
+        .withFailureHandler(function(err) {
+          showError(err.message || '서버 오류가 발생했습니다.');
+        })
+        .analyzeMeetingAudio(base64, mimeType, REPORT_ID);
+    };
+    reader.readAsDataURL(blob);
+  }
+
+  function showResult(res) {
+    let html = '';
+    if (res.summary) {
+      html += '<div class="result-section"><div class="result-label">회의 요약</div><div class="result-text">' + esc(res.summary) + '</div></div>';
+    }
+    if (res.decisions && res.decisions.length) {
+      html += '<div class="result-section"><div class="result-label">주요 의사결정 (' + res.decisions.length + '건)</div><ul class="result-list">' +
+        res.decisions.map(d => '<li>' + esc(d) + '</li>').join('') + '</ul></div>';
+    }
+    if (res.todos && res.todos.length) {
+      html += '<div class="result-section"><div class="result-label">TO-DO 등록됨 (' + res.todos.length + '건)</div><ul class="result-list">' +
+        res.todos.map(t => '<li class="todo">' + esc(t) + '</li>').join('') + '</ul>' +
+        '<p style="font-size:11px;color:#059669;margin-top:6px">↑ 보고서의 TO-DO 섹션에 자동 등록되었습니다.</p></div>';
+    }
+    document.getElementById('result-body').innerHTML = html;
+    show('result');
+  }
+
+  function showError(msg) {
+    document.getElementById('error-msg').textContent = msg;
+    show('error');
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  document.getElementById('btn-done').onclick = () => window.close();
+  document.getElementById('btn-retry').onclick = () => show('idle');
+</script>
+</body>
+</html>

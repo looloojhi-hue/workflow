@@ -14,6 +14,15 @@ const STATUS = {
 // 1. 초기 화면 및 프론트엔드 연동
 // =========================================================================
 function doGet(e) {
+  const page = e && e.parameter && e.parameter.page;
+  if (page === 'recorder') {
+    const tmpl = HtmlService.createTemplateFromFile('Recorder');
+    tmpl.reportId = (e.parameter.reportId || '');
+    return tmpl.evaluate()
+      .setTitle('회의록 녹음')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
   return HtmlService.createTemplateFromFile('Index').evaluate()
     .setTitle('경영지원본부 통합 보고 포털')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
@@ -1404,10 +1413,13 @@ function _parseMilestonesCluster_(msData, projectIdSet) {
     });
   }
   milestones.sort(function(a, b) {
-    const od = a.order - b.order;
-    if (od !== 0) return od;
-    if (a.date && b.date) return new Date(a.date) - new Date(b.date);
-    return 0;
+    if (a.date && b.date) {
+      const dateDiff = new Date(a.date) - new Date(b.date);
+      if (dateDiff !== 0) return dateDiff;
+    }
+    if (a.date && !b.date) return -1;
+    if (!a.date && b.date) return 1;
+    return a.order - b.order;
   });
   return milestones;
 }
@@ -1549,6 +1561,151 @@ function joinProject(reportId, projectId) {
     msSheet.appendRow([milestoneId, projectId, 'report', title, date, reportId, msStatus, maxOrder + 10, email, now]);
     return { success: true, milestoneId };
   } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+// =========================================================================
+// 19. [API] 회의록 자동 정리 (녹음 → Vertex AI 분석 → 요약/의사결정/TODO 추출)
+// =========================================================================
+
+function _getMeetingTempFolderId_() {
+  const props = PropertiesService.getScriptProperties();
+  let folderId = props.getProperty('MEETING_TEMP_FOLDER_ID');
+  if (folderId) {
+    try { DriveApp.getFolderById(folderId); return folderId; } catch(e) {}
+  }
+  const folder = DriveApp.createFolder('[임시] 회의 녹음 파일');
+  folderId = folder.getId();
+  props.setProperty('MEETING_TEMP_FOLDER_ID', folderId);
+  return folderId;
+}
+
+function _getMeetingSheet_(ss) {
+  let sheet = ss.getSheetByName('회의록DB');
+  if (!sheet) {
+    sheet = ss.insertSheet('회의록DB');
+    sheet.appendRow(['ID', '보고서ID', '타임스탬프', '녹음자이메일', '녹음자성함', '녹음자직책', '회의요약', '주요의사결정', 'TODO목록']);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function analyzeMeetingAudio(base64Audio, mimeType, reportId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const email = Session.getActiveUser().getEmail().toLowerCase();
+
+  const authData = ss.getSheetByName('권한관리').getDataRange().getValues();
+  let userName = '', userRole = '팀원';
+  for (let i = 1; i < authData.length; i++) {
+    if (String(authData[i][1] || '').toLowerCase() === email) {
+      userName = String(authData[i][0] || '');
+      userRole = String(authData[i][2] || '팀원');
+      break;
+    }
+  }
+
+  let tempFileId = null;
+  try {
+    // 1. 오디오를 Drive 임시 폴더에 저장
+    const folderId = _getMeetingTempFolderId_();
+    const folder = DriveApp.getFolderById(folderId);
+    const audioBytes = Utilities.base64Decode(base64Audio);
+    const safeType = mimeType || 'audio/webm';
+    const ext = safeType.includes('mp4') ? '.mp4' : safeType.includes('ogg') ? '.ogg' : '.webm';
+    const audioBlob = Utilities.newBlob(audioBytes, safeType, 'meeting_' + new Date().getTime() + ext);
+    const tempFile = folder.createFile(audioBlob);
+    tempFileId = tempFile.getId();
+
+    // 2. Vertex AI (Gemini 2.5 Flash) 오디오 직접 분석
+    const projectId = 'hr-division-ai-rpa';
+    const location = 'us-central1';
+    const modelId = 'gemini-2.5-flash';
+    const accessToken = getAccessToken();
+    const apiUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`;
+
+    const prompt = '이 회의 녹음을 한국어로 분석하여 반드시 아래 JSON 형식으로만 응답하세요. JSON 외의 텍스트는 절대 출력하지 마세요.\n\n{"summary":"3~5문장으로 회의 핵심 내용 요약","decisions":["확정된 의사결정 1","확정된 의사결정 2"],"todos":["담당자: 실행 항목 내용"]}\n\n규칙: summary는 회의 목적·논의·결론 포함. decisions는 회의에서 확정된 사항만, 없으면 빈 배열. todos는 실행이 필요한 항목만, 없으면 빈 배열. 전체 한국어 작성.';
+
+    const payload = {
+      'contents': [{ 'role': 'user', 'parts': [
+        { 'inline_data': { 'mime_type': safeType, 'data': base64Audio } },
+        { 'text': prompt }
+      ]}],
+      'generationConfig': { 'temperature': 0.1, 'maxOutputTokens': 4096 }
+    };
+
+    const response = UrlFetchApp.fetch(apiUrl, {
+      'method': 'post',
+      'contentType': 'application/json',
+      'headers': { 'Authorization': 'Bearer ' + accessToken },
+      'payload': JSON.stringify(payload),
+      'muteHttpExceptions': true
+    });
+
+    const json = JSON.parse(response.getContentText());
+    if (!json.candidates || !json.candidates[0].content) {
+      throw new Error('Vertex AI 응답 오류: ' + response.getContentText().substring(0, 200));
+    }
+
+    let resultText = json.candidates[0].content.parts[0].text.trim();
+    resultText = resultText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+    let parsed;
+    try { parsed = JSON.parse(resultText); }
+    catch(e) { parsed = { summary: resultText, decisions: [], todos: [] }; }
+
+    const summary = String(parsed.summary || '');
+    const decisions = Array.isArray(parsed.decisions) ? parsed.decisions.filter(Boolean) : [];
+    const todos = Array.isArray(parsed.todos) ? parsed.todos.filter(Boolean) : [];
+
+    // 3. 회의록DB 저장
+    const meetingSheet = _getMeetingSheet_(ss);
+    const now = Utilities.formatDate(new Date(), 'GMT+9', 'yyyy-MM-dd HH:mm');
+    const meetingId = 'MR-' + new Date().getTime();
+    meetingSheet.appendRow([meetingId, reportId, now, email, userName, userRole,
+      summary, JSON.stringify(decisions), JSON.stringify(todos)]);
+
+    return { success: true, meetingId: meetingId, summary: summary, decisions: decisions, todos: todos,
+             recorderName: userName, recorderRole: userRole, timestamp: now };
+
+  } catch(e) {
+    Logger.log('analyzeMeetingAudio error: ' + e.toString());
+    return { success: false, message: e.message };
+  } finally {
+    if (tempFileId) {
+      try { DriveApp.getFileById(tempFileId).setTrashed(true); } catch(e2) {}
+    }
+  }
+}
+
+function getMeetingRecords(reportId) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('회의록DB');
+    if (!sheet) return [];
+    const data = sheet.getDataRange().getValues();
+    const records = [];
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][1] || '') !== reportId) continue;
+      let decisions = [], todos = [];
+      try { decisions = JSON.parse(data[i][7] || '[]'); } catch(e) {}
+      try { todos = JSON.parse(data[i][8] || '[]'); } catch(e) {}
+      records.push({
+        id: String(data[i][0] || ''),
+        reportId: String(data[i][1] || ''),
+        timestamp: String(data[i][2] || ''),
+        recorderEmail: String(data[i][3] || ''),
+        recorderName: String(data[i][4] || ''),
+        recorderRole: String(data[i][5] || ''),
+        summary: String(data[i][6] || ''),
+        decisions: decisions,
+        todos: todos
+      });
+    }
+    records.sort(function(a, b) { return b.timestamp.localeCompare(a.timestamp); });
+    return records;
+  } catch(e) {
+    Logger.log('getMeetingRecords error: ' + e.toString());
+    return [];
+  }
 }
 
 // =========================================================================
